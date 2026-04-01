@@ -16,37 +16,42 @@ with open("players.json") as f:
 
 def cricket_analyst(question):
     prompt = f"""
-You are an elite cricket analyst.
+You are BOTH:
+1. A cricket analyst (data-driven)
+2. A cricket commentator (expressive)
 
 Use this data:
 {player_data}
 
 STRICT RULES:
+- Use ONLY the given data
+- Do NOT add external knowledge
 - Return ONLY valid JSON
-- Do NOT include markdown (no ```json)
-- Do NOT include explanation
-- Do NOT include extra text
+- No markdown or extra text
 
 FORMAT:
 
 {{
-  "virat_kohli": {{
-    "runs": "",
-    "average": "",
-    "strike_rate": "",
-    "strength": ""
-  }},
-  "rohit_sharma": {{
-    "runs": "",
-    "average": "",
-    "strike_rate": "",
-    "strength": ""
+  "analysis": {{
+    "virat_kohli": {{
+      "runs": "",
+      "average": "",
+      "strike_rate": "",
+      "strength": ""
+    }},
+    "rohit_sharma": {{
+      "runs": "",
+      "average": "",
+      "strike_rate": "",
+      "strength": ""
+    }}
   }},
   "comparison": [
     "",
     "",
     ""
   ],
+  "commentary": "",
   "verdict": ""
 }}
 
