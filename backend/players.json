@@ -1,0 +1,14 @@
+{
+  "Virat Kohli": {
+    "format": "ODI",
+    "runs": 13000,
+    "average": 57,
+    "strike_rate": 93
+  },
+  "Rohit Sharma": {
+    "format": "ODI",
+    "runs": 10000,
+    "average": 49,
+    "strike_rate": 92
+  }
+}
