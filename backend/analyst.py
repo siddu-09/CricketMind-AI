@@ -21,11 +21,11 @@ You are an elite cricket analyst.
 Use this data:
 {player_data}
 
-IMPORTANT:
+STRICT RULES:
 - Return ONLY valid JSON
-- Do NOT add explanation outside JSON
-- Do NOT use \\n
-- Keep values simple and clear
+- Do NOT include markdown (no ```json)
+- Do NOT include explanation
+- Do NOT include extra text
 
 FORMAT:
 
@@ -53,20 +53,27 @@ FORMAT:
 Question: {question}
 """
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    output = response.choices[0].message.content
-
-    # Convert string → JSON safely
     try:
-        return json.loads(output)
-    except:
+        # Call Groq API
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        output = response.choices[0].message.content.strip()
+
+        # 🔥 Clean markdown if AI adds it
+        if "```" in output:
+            output = output.replace("```json", "").replace("```", "").strip()
+
+        # 🔥 Convert to JSON
+        parsed_output = json.loads(output)
+
+        return parsed_output
+
+    except Exception as e:
+        # 🔥 Always return safe response (no crash)
         return {
-            "error": "Invalid JSON from AI",
-            "raw_output": output
+            "status": "error",
+            "message": str(e)
         }
