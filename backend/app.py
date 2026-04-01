@@ -17,4 +17,4 @@ def home():
 @app.post("/analyze")
 def analyze(query: Query):
     answer = cricket_analyst(query.question)
-    return {"answer": answer.replace("\\n", "\n")}
+    return answer
