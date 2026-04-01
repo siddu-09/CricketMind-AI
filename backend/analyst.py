@@ -14,7 +14,12 @@ with open("players.json") as f:
     player_data = json.load(f)
 
 
-def cricket_analyst(question):
+def cricket_analyst(player1, player2):
+    if player1 not in player_data or player2 not in player_data:
+        return {
+            "status": "error",
+            "message": "One or both players not found in dataset"
+        }
     prompt = f"""
 You are BOTH:
 1. A cricket analyst (data-driven)
@@ -52,10 +57,16 @@ FORMAT:
     ""
   ],
   "commentary": "",
-  "verdict": ""
+  "verdict": "",
+  "prediction": "",
+  "confidence": ""
 }}
+IMPORTANT:
+- Prediction must be one player name
+- Confidence must be percentage (0–100%)
 
-Question: {question}
+Compare these two players:
+{player1} vs {player2}
 """
 
     try:
