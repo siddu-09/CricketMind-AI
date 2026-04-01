@@ -6,7 +6,8 @@ app = FastAPI()
 
 
 class Query(BaseModel):
-    question: str
+    player1: str
+    player2: str
 
 
 @app.get("/")
@@ -16,5 +17,5 @@ def home():
 
 @app.post("/analyze")
 def analyze(query: Query):
-    answer = cricket_analyst(query.question)
+    answer = cricket_analyst(query.player1, query.player2)
     return answer
