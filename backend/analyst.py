@@ -85,6 +85,30 @@ Compare these two players:
         # 🔥 Convert to JSON
         parsed_output = json.loads(output)
 
+        #  Get player stats
+        p1_data = player_data[player1]
+        p2_data = player_data[player2]
+
+        # Decide winner using logic (NOT AI)
+        if float(p1_data["average"]) > float(p2_data["average"]):
+            winner = player1
+        else:
+            winner = player2
+
+        # ✅ Confidence based on difference
+        diff = abs(float(p1_data["average"]) - float(p2_data["average"]))
+
+        if diff > 10:
+            confidence = 90
+        elif diff > 5:
+            confidence = 75
+        else:
+            confidence = 60
+
+        # ✅ Override AI output
+        parsed_output["prediction"] = winner.replace("_", " ").title()
+        parsed_output["confidence"] = confidence
+
         return parsed_output
 
     except Exception as e:
