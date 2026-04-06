@@ -8,6 +8,39 @@ import pyttsx3
 from gtts import gTTS
 import os
 
+st.set_page_config(page_title="CricketMind AI", layout="wide", initial_sidebar_state="collapsed")
+
+# -------------------------------
+# CUSTOM CSS
+# -------------------------------
+st.markdown("""
+<style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 1200px;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 1.8rem;
+        color: #1E88E5;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        height: 3rem;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        border-color: #1E88E5;
+        color: #1E88E5;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # -------------------------------
 # INIT VOICE
 # -------------------------------
@@ -31,7 +64,7 @@ def play_frontend_audio(text):
 
 def listen():
     with sr.Microphone() as source:
-        st.info("🎤 Listening... Speak now")
+        st.info("Listening... Speak now")
         recognizer.adjust_for_ambient_noise(source, duration=1)
         audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
 
@@ -89,7 +122,7 @@ def normalize_pair(v1, v2):
 # -------------------------------
 def show_results(data):
 
-    st.subheader("📊 Player Performance Breakdown")
+    st.subheader("Player Performance Breakdown")
 
     analysis = data["analysis"]
     players = list(analysis.keys())
@@ -98,15 +131,35 @@ def show_results(data):
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown(f"### {p1.replace('_',' ').title()}")
-        st.json(analysis[p1])
+        st.markdown(f"<h3 style='text-align: center; color: #4CAF50;'>{p1.replace('_',' ').title()}</h3>", unsafe_allow_html=True)
+        st.divider()
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Runs", analysis[p1].get("runs", 0))
+        m2.metric("Average", analysis[p1].get("average", 0))
+        m3.metric("Strike Rate", analysis[p1].get("strike_rate", 0))
+        
+        m4, m5, m6 = st.columns(3)
+        m4.metric("Centuries", analysis[p1].get("centuries", "N/A"))
+        m5.metric("Fifties", analysis[p1].get("fifties", "N/A"))
+        m6.metric("Highest", analysis[p1].get("highest_score", "N/A"))
 
     with col2:
-        st.markdown(f"### {p2.replace('_',' ').title()}")
-        st.json(analysis[p2])
+        st.markdown(f"<h3 style='text-align: center; color: #F44336;'>{p2.replace('_',' ').title()}</h3>", unsafe_allow_html=True)
+        st.divider()
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Runs", analysis[p2].get("runs", 0))
+        m2.metric("Average", analysis[p2].get("average", 0))
+        m3.metric("Strike Rate", analysis[p2].get("strike_rate", 0))
+        
+        m4, m5, m6 = st.columns(3)
+        m4.metric("Centuries", analysis[p2].get("centuries", "N/A"))
+        m5.metric("Fifties", analysis[p2].get("fifties", "N/A"))
+        m6.metric("Highest", analysis[p2].get("highest_score", "N/A"))
+        
+    st.divider()
 
     # Radar chart
-    st.subheader("🕸️ Visual Performance Radar")
+    st.subheader("Visual Performance Radar")
 
     labels = ["Runs", "Average", "Strike Rate"]
 
@@ -136,42 +189,52 @@ def show_results(data):
     st.pyplot(fig)
 
     # Comparison
-    st.subheader("⚖️ Head-to-Head Insights")
+    st.subheader("Head-to-Head Insights")
     for point in data["comparison"]:
         st.write("•", point)
 
     # Commentary
-    st.subheader("🎙️ Expert AI Commentary")
+    st.subheader("Expert AI Commentary")
     st.info(data["commentary"])
+    
+    text_to_speak = f"{data['commentary']} {data['verdict']}"
+    play_frontend_audio(text_to_speak)
 
     # Verdict
-    st.subheader("🏁 Final Verdict & Analysis")
+    st.subheader("Final Verdict & Analysis")
     st.success(data["verdict"])
 
     # Prediction
-    st.subheader("🔮 Match Outcome Prediction")
+    st.write("---")
+    st.subheader("Match Outcome Prediction")
 
     winner = data["prediction"]
     confidence = data["confidence"]
 
-    st.write(f"🏆 Winner: {winner}")
-    st.write(f"📈 Confidence: {confidence}")
+    pred_col1, pred_col2 = st.columns([1, 2])
+    
+    with pred_col1:
+        st.metric(label="Predicted Winner", value=winner.replace('_',' ').title())
+        st.metric(label="Confidence Level", value=f"{confidence}%")
+        
+    with pred_col2:
+        if winner.lower().replace(" ", "_") == p1.lower():
+            st.success(f"🏏 {p1.replace('_',' ').title()} is predicted to win this matchup!")
+        else:
+            st.success(f"🏏 {p2.replace('_',' ').title()} is predicted to win this matchup!")
+        
+        try:
+            st.progress(min(int(float(confidence)), 100))
+        except:
+            pass
 
-    if winner.lower().replace(" ", "_") == p1.lower():
-        st.success(f"🏆 {p1.replace('_',' ').title()} Wins!")
-    else:
-        st.success(f"🏆 {p2.replace('_',' ').title()} Wins!")
-
-    text_to_speak = f"{data['commentary']} {data['verdict']} {winner} is likely to win with {confidence} percent confidence."
-    play_frontend_audio(text_to_speak)
 
 # -------------------------------
 # UI START
 # -------------------------------
-st.set_page_config(page_title="CricketMind AI", layout="centered")
-
-st.title("🏏 CricketMind AI")
-st.caption("🚀 AI-powered cricket analytics comparing player performance, strengths, and match predictions.")
+st.markdown("<h1 style='text-align: center; color: #1E88E5;'>🏏 CricketMind AI</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #555; font-size: 1.1rem;'>AI-powered cricket analytics comparing player performance, strengths, and match predictions.</p>", unsafe_allow_html=True)
+st.write("---")
 
 # -------------------------------
 # SESSION STATE
@@ -183,58 +246,58 @@ if "player2" not in st.session_state:
     st.session_state.player2 = players_list[1]
 
 # -------------------------------
-# VOICE BUTTON (AUTO COMPARE)
+# SELECT PLAYERS
 # -------------------------------
-if st.button("🎤 Speak Players", key="voice_btn"):
-
-    query = listen()
-
-    if query:
-        p1, p2 = extract_players(query)
-
-        if p1 and p2:
-            st.session_state.player1 = p1
-            st.session_state.player2 = p2
-            st.success(f"Selected: {p1} vs {p2}")
-
-            response = requests.post(
-                "http://127.0.0.1:8000/analyze",
-                json={"player1": p1, "player2": p2}
-            )
-
-            data = response.json()
-
-            if data.get("status") == "error":
-                st.error(data["message"])
-            else:
-                show_results(data)
-
-        else:
-            st.error("Could not detect players")
-
-# -------------------------------
-# DROPDOWN
-# -------------------------------
-player1 = st.selectbox("Select Player 1", players_list, key="player1")
-player2 = st.selectbox("Select Player 2", players_list, key="player2")
+col1, col2 = st.columns(2)
+with col1:
+    player1 = st.selectbox("Select Player 1", players_list, key="player1")
+with col2:
+    player2 = st.selectbox("Select Player 2", players_list, key="player2")
 
 if player1 == player2:
-    st.warning("⚠️ Please select two different players")
+    st.warning("Please select two different players")
     st.stop()
 
 # -------------------------------
-# MANUAL COMPARE
+# ACTION BUTTONS
 # -------------------------------
-if st.button("Compare", key="compare_btn"):
+st.write("") # spacing
+btn_col1, btn_col2, btn_col3 = st.columns([1, 2, 1])
 
-    response = requests.post(
-        "http://127.0.0.1:8000/analyze",
-        json={"player1": player1, "player2": player2}
-    )
+action_clicked = False
+with btn_col1:
+    if st.button("🎤 Speak Players", key="voice_btn"):
+        query = listen()
+        if query:
+            p1, p2 = extract_players(query)
+            if p1 and p2:
+                player1 = p1
+                player2 = p2
+                action_clicked = True
+                st.success(f"Selected: {p1.replace('_',' ').title()} vs {p2.replace('_',' ').title()}")
+            else:
+                st.error("Could not detect two valid players from your voice.")
+        
+with btn_col3:
+    if st.button("⚖️ Compare Players", type="primary", key="compare_btn"):
+        action_clicked = True
 
-    data = response.json()
-
-    if data.get("status") == "error":
-        st.error(data["message"])
-    else:
-        show_results(data)
+# -------------------------------
+# EXECUTE COMPARISON
+# -------------------------------
+if action_clicked:
+    with st.spinner('Analyzing player data and generating expert commentary...'):
+        response = requests.post(
+            "http://127.0.0.1:8000/analyze",
+            json={"player1": player1, "player2": player2}
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "error":
+                st.error(data["message"])
+            else:
+                st.write("---")
+                show_results(data)
+        else:
+            st.error("Could not connect to the backend server. Is it running?")
