@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import json
 import matplotlib.pyplot as plt
 import numpy as np
 import speech_recognition as sr
@@ -76,22 +75,6 @@ def listen():
         st.error("Could not understand voice")
         return ""
 
-# -------------------------------
-# LOAD DATA
-# -------------------------------
-with open("players.json") as f:
-    players_list = list(json.load(f).keys())
-
-# -------------------------------
-# MATCHING
-# -------------------------------
-def match_player(name):
-    name = name.lower()
-    for player in players_list:
-        if name in player.lower() or player.lower() in name:
-            return player
-    return None
-
 def extract_players(text):
     text = text.lower()
     text = text.replace("versus", "vs")
@@ -101,8 +84,8 @@ def extract_players(text):
     parts = text.split("vs")
 
     if len(parts) == 2:
-        p1 = match_player(parts[0].strip())
-        p2 = match_player(parts[1].strip())
+        p1 = parts[0].strip().title()
+        p2 = parts[1].strip().title()
         return p1, p2
 
     return None, None
@@ -240,19 +223,19 @@ st.write("---")
 # SESSION STATE
 # -------------------------------
 if "player1" not in st.session_state:
-    st.session_state.player1 = players_list[0]
+    st.session_state.player1 = "Virat Kohli"
 
 if "player2" not in st.session_state:
-    st.session_state.player2 = players_list[1]
+    st.session_state.player2 = "Rohit Sharma"
 
 # -------------------------------
 # SELECT PLAYERS
 # -------------------------------
 col1, col2 = st.columns(2)
 with col1:
-    player1 = st.selectbox("Select Player 1", players_list, key="player1")
+    player1 = st.text_input("Enter Player 1", key="player1")
 with col2:
-    player2 = st.selectbox("Select Player 2", players_list, key="player2")
+    player2 = st.text_input("Enter Player 2", key="player2")
 
 if player1 == player2:
     st.warning("Please select two different players")

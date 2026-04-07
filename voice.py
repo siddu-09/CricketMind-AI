@@ -1,11 +1,6 @@
 import speech_recognition as sr
 import pyttsx3
 import requests
-import json
-
-# Load player data
-with open("players.json") as f:
-    player_data = json.load(f)
 
 # Initialize voice
 recognizer = sr.Recognizer()
@@ -43,17 +38,6 @@ def listen():
         return ""
 
 
-# 🔥 Smart player matching
-def match_player(name):
-    name = name.lower()
-
-    for player in player_data.keys():
-        if name in player.lower() or player.lower() in name:
-            return player
-
-    return None
-
-
 # 🔥 Extract players from voice
 def extract_players(text):
     text = text.lower()
@@ -66,11 +50,8 @@ def extract_players(text):
     parts = text.split("vs")
 
     if len(parts) == 2:
-        raw_p1 = parts[0].strip()
-        raw_p2 = parts[1].strip()
-
-        p1 = match_player(raw_p1)
-        p2 = match_player(raw_p2)
+        p1 = parts[0].strip().title()
+        p2 = parts[1].strip().title()
 
         return p1, p2
 
