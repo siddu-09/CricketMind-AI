@@ -249,21 +249,13 @@ def normalize_pair(values1, values2):
     )
 
 
-def player_block(title, stats, format_used, photo_url=None):
-    photo_html = ""
-    if photo_url:
-        photo_html = (
-            f'<div style="display:flex;justify-content:center;margin-bottom:10px;">'
-            f'<img src="{photo_url}" alt="{title}" '
-            'style="width:110px;height:110px;object-fit:cover;border-radius:50%;'
-            'border:2px solid #d4dce7;box-shadow:0 6px 14px rgba(15,23,42,0.14);" />'
-            '</div>'
-        )
-
+def player_block(title, stats, format_used, photo_source=None):
     st.markdown(f"### {title}")
+    if photo_source:
+        st.image(photo_source, width=110)
+
     st.markdown(
         f"""
-        {photo_html}
         <div class="metric-card">
           <div class="metric-title">Runs</div>
           <div class="metric-value">{stats.get('runs', 'N/A')}</div>
@@ -295,7 +287,12 @@ def fetch_player_photo_url(player_name):
             summary_data = summary_resp.json()
             thumb = (summary_data.get("thumbnail") or {}).get("source")
             if thumb:
-                return thumb
+                try:
+                    image_resp = requests.get(thumb, timeout=8)
+                    if image_resp.status_code == 200 and image_resp.content:
+                        return image_resp.content
+                except requests.RequestException:
+                    return thumb
     except requests.RequestException:
         pass
 
@@ -323,7 +320,12 @@ def fetch_player_photo_url(player_name):
                         summary_data = summary_resp.json()
                         thumb = (summary_data.get("thumbnail") or {}).get("source")
                         if thumb:
-                            return thumb
+                            try:
+                                image_resp = requests.get(thumb, timeout=8)
+                                if image_resp.status_code == 200 and image_resp.content:
+                                    return image_resp.content
+                            except requests.RequestException:
+                                return thumb
     except requests.RequestException:
         pass
 
@@ -434,6 +436,14 @@ if "player1" not in st.session_state:
     st.session_state.player1 = "Virat Kohli"
 if "player2" not in st.session_state:
     st.session_state.player2 = "Rohit Sharma"
+if "last_result" not in st.session_state:
+  st.session_state.last_result = None
+if "last_error" not in st.session_state:
+  st.session_state.last_error = ""
+if "last_compared_players" not in st.session_state:
+  st.session_state.last_compared_players = ("", "")
+if "last_language_label" not in st.session_state:
+  st.session_state.last_language_label = "English"
 
 # Apply voice-detected players before text inputs are instantiated.
 if "pending_player1" in st.session_state and "pending_player2" in st.session_state:
@@ -498,10 +508,13 @@ if compare_clicked:
   player2_resolved = resolve_player_alias(player2)
 
   if not player1_resolved.strip() or not player2_resolved.strip():
-    st.error("Please enter both player names.")
+    st.session_state.last_result = None
+    st.session_state.last_error = "Please enter both player names."
   elif player1_resolved.strip().lower() == player2_resolved.strip().lower():
-    st.warning("Please enter two different players.")
+    st.session_state.last_result = None
+    st.session_state.last_error = "Please enter two different players."
   else:
+    st.session_state.last_error = ""
     if player1_resolved != player1 or player2_resolved != player2:
       st.caption(f"Interpreting input as: {player1_resolved} vs {player2_resolved}")
 
@@ -509,24 +522,40 @@ if compare_clicked:
       try:
         response = call_backend(player1_resolved, player2_resolved, selected_language)
       except requests.RequestException as exc:
-        st.error(f"Could not reach backend at {BACKEND_URL}: {exc}")
-        st.stop()
+        st.session_state.last_result = None
+        st.session_state.last_error = f"Could not reach backend at {BACKEND_URL}: {exc}"
+        response = None
 
-      if response.status_code != 200:
-        st.error(f"Backend request failed with status code {response.status_code}.")
-        st.stop()
+      if response is not None and response.status_code != 200:
+        st.session_state.last_result = None
+        st.session_state.last_error = f"Backend request failed with status code {response.status_code}."
 
-      result = response.json()
-      if result.get("status") == "error":
-        st.error(result.get("message", "Unknown API error."))
-        st.stop()
+      if response is not None and response.status_code == 200:
+        result = response.json()
+        if result.get("status") == "error":
+          st.session_state.last_result = None
+          st.session_state.last_error = result.get("message", "Unknown API error.")
+        else:
+          analysis = result.get("analysis", {})
+          keys = list(analysis.keys())
+          if len(keys) < 2:
+            st.session_state.last_result = None
+            st.session_state.last_error = "Unexpected response format: analysis data missing."
+          else:
+            st.session_state.last_result = result
+            st.session_state.last_compared_players = (player1_resolved, player2_resolved)
+            st.session_state.last_language_label = language_label
+            st.session_state.last_error = ""
 
+if st.session_state.last_error:
+  st.error(st.session_state.last_error)
+
+if st.session_state.last_result:
+      result = st.session_state.last_result
+      player1_resolved, player2_resolved = st.session_state.last_compared_players
+      language_label = st.session_state.last_language_label
       analysis = result.get("analysis", {})
       keys = list(analysis.keys())
-      if len(keys) < 2:
-        st.error("Unexpected response format: analysis data missing.")
-        st.stop()
-
       k1, k2 = keys[0], keys[1]
       stats1, stats2 = analysis[k1], analysis[k2]
       formats = result.get("format_used", {})
@@ -566,6 +595,6 @@ if compare_clicked:
         st.caption("Generating audio commentary...")
         audio_bytes = generate_tts_audio(commentary_text, selected_language)
         if audio_bytes:
-          st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+          st.audio(audio_bytes, format="audio/mp3")
       except Exception as exc:
         st.warning(f"Could not generate commentary audio: {exc}")
