@@ -10,6 +10,10 @@ pinned: false
 
 # CricketMind AI
 
+## Live Demo
+
+- Hugging Face Space: https://huggingface.co/spaces/siddu9/cricketmind-ai
+
 CricketMind AI is a player-vs-player cricket comparison app that combines live stats, AI analysis, and spoken commentary.
 
 You can compare two cricketers using text input, view a stat-driven comparison dashboard, and listen to generated commentary in multiple languages.
