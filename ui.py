@@ -16,6 +16,11 @@ LANGUAGE_OPTIONS = {
   "Hindi": "hi",
   "Kannada": "kn",
 }
+STT_LANGUAGE_OPTIONS = {
+    "English": "en-IN",
+    "Hindi": "hi-IN",
+    "Kannada": "kn-IN",
+}
 COMMON_PLAYER_ALIASES = {
     "kohli": "Virat Kohli",
     "virat": "Virat Kohli",
@@ -270,6 +275,29 @@ def extract_players_from_text(text):
     return None, None
 
 
+  def extract_players_from_aliases(text):
+    normalized = re.sub(r"[^a-z0-9\s]", " ", str(text or "").lower())
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    if not normalized:
+      return None, None
+
+    tokens = normalized.split()
+    matched_players = []
+
+    for start in range(len(tokens)):
+      for end in range(start + 1, len(tokens) + 1):
+        phrase = " ".join(tokens[start:end])
+        if phrase in COMMON_PLAYER_ALIASES:
+          resolved = COMMON_PLAYER_ALIASES[phrase]
+          if resolved not in matched_players:
+            matched_players.append(resolved)
+
+    if len(matched_players) >= 2:
+      return matched_players[0], matched_players[1]
+
+    return None, None
+
+
 def resolve_player_alias(name):
     clean_name = str(name or "").strip().lower()
     if not clean_name:
@@ -293,7 +321,7 @@ def resolve_player_alias(name):
     return str(name).strip().title()
 
 
-def transcribe_speech(audio_file):
+def transcribe_speech(audio_file, stt_language_code):
     if audio_file is None:
         return ""
 
@@ -305,8 +333,12 @@ def transcribe_speech(audio_file):
         audio_data = recognizer.record(source)
 
     try:
-        return recognizer.recognize_google(audio_data)
+      return recognizer.recognize_google(audio_data, language=stt_language_code)
     except sr.UnknownValueError:
+      # Fallback to generic English if selected language decode fails.
+      try:
+        return recognizer.recognize_google(audio_data, language="en-US")
+      except sr.UnknownValueError:
         return ""
     except sr.RequestError as exc:
         raise RuntimeError(f"Speech recognition service error: {exc}") from exc
@@ -370,6 +402,13 @@ input_mode = st.radio(
 )
 
 if input_mode == "Speech":
+  stt_language_label = st.selectbox(
+      "Speech recognition language",
+      options=list(STT_LANGUAGE_OPTIONS.keys()),
+      index=0,
+      key="stt_language_label",
+  )
+  stt_language_code = STT_LANGUAGE_OPTIONS[stt_language_label]
   st.caption("Record and say both players, for example: Virat Kohli versus Rohit Sharma")
   speech_audio = st.audio_input("Speak player names")
   speech_apply = st.button("Use Speech Input")
@@ -380,7 +419,7 @@ if input_mode == "Speech":
     else:
       with st.spinner("Transcribing speech..."):
         try:
-          transcript = transcribe_speech(speech_audio)
+          transcript = transcribe_speech(speech_audio, stt_language_code)
         except RuntimeError as exc:
           st.error(str(exc))
           transcript = ""
@@ -388,6 +427,8 @@ if input_mode == "Speech":
       if transcript:
         st.success(f"Heard: {transcript}")
         spoken_p1, spoken_p2 = extract_players_from_text(transcript)
+        if not (spoken_p1 and spoken_p2):
+          spoken_p1, spoken_p2 = extract_players_from_aliases(transcript)
         if spoken_p1 and spoken_p2:
           st.session_state.pending_player1 = resolve_player_alias(spoken_p1)
           st.session_state.pending_player2 = resolve_player_alias(spoken_p2)
