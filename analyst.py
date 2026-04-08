@@ -153,15 +153,18 @@ def get_player_stats(player_name):
     Returns dict with keys: runs, average, strike_rate, format_used, player_name.
     """
     if not CRICAPI_KEY:
-        return None
+        return None, "CRICAPI_KEY is missing"
     # Step 1: Search player
     search_url = f"{CRICAPI_BASE}/players"
     params = {"apikey": CRICAPI_KEY, "search": player_name}
     try:
         resp = requests.get(search_url, params=params, timeout=10)
         data = resp.json()
+        if str(data.get("status", "")).lower() == "failure":
+            reason = str(data.get("reason") or "Player search failed").strip()
+            return None, reason
         if not data.get("data"):
-            return None
+            return None, f"No player search results for '{player_name}'"
         players = data["data"]
 
         # Prefer exact name match when available, else first search hit.
@@ -172,7 +175,7 @@ def get_player_stats(player_name):
         player_id = selected["id"]
         resolved_name = selected.get("name", player_name)
     except Exception:
-        return None
+        return None, f"Failed to search player '{player_name}'"
     # Step 2: Get player details + stats
     stats_url = f"{CRICAPI_BASE}/players_info"
     params = {"apikey": CRICAPI_KEY, "id": player_id}
@@ -180,11 +183,12 @@ def get_player_stats(player_name):
         resp = requests.get(stats_url, params=params, timeout=10)
         stats = resp.json()
         if stats.get("status") == "failure":
-            return None
+            reason = str(stats.get("reason") or "Player stats lookup failed").strip()
+            return None, reason
 
         stat_rows = stats.get("data", {}).get("stats", [])
         if not stat_rows:
-            return None
+            return None, f"No stats returned for '{resolved_name}'"
 
         target_formats = ["odi", "t20i", "test"]
         batting_by_format = {}
@@ -199,7 +203,7 @@ def get_player_stats(player_name):
                 batting_by_format[fmt] = current
 
         if not batting_by_format:
-            return None
+            return None, f"No batting stats in ODI/T20I/Test for '{resolved_name}'"
 
         total_runs = 0.0
         weighted_avg_sum = 0.0
@@ -251,9 +255,9 @@ def get_player_stats(player_name):
             "format_used": selected_format,
             "player_name": resolved_name,
             "format_breakdown": format_breakdown,
-        }
+        }, None
     except Exception:
-        return None
+        return None, f"Failed to fetch stats for '{player_name}'"
 
 
 def cricket_analyst(player1, player2, language="en"):
@@ -265,12 +269,17 @@ def cricket_analyst(player1, player2, language="en"):
     player2 = resolve_player_alias(player2)
 
     # Fetch player stats from CricAPI
-    p1_data = get_player_stats(player1)
-    p2_data = get_player_stats(player2)
+    p1_data, p1_error = get_player_stats(player1)
+    p2_data, p2_error = get_player_stats(player2)
     if not p1_data or not p2_data:
+        error_parts = []
+        if not p1_data:
+            error_parts.append(f"{player1}: {p1_error or 'player not found'}")
+        if not p2_data:
+            error_parts.append(f"{player2}: {p2_error or 'player not found'}")
         return {
             "status": "error",
-            "message": "One or both players not found via CricAPI"
+            "message": "CricAPI lookup failed. " + " | ".join(error_parts)
         }
 
     # Prepare data for LLM prompt
