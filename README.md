@@ -51,7 +51,12 @@ The project has two main parts:
 - Engine: Google Text-to-Speech (gTTS)
 - Usage: Converts generated AI commentary to MP3 audio for playback.
 
-3. External Cricket Data Source
+3. Speech-to-Text (STT)
+
+- Engine: Groq Whisper (whisper-large-v3-turbo)
+- Usage: Transcribes spoken player names for accurate voice input and extraction.
+
+4. External Cricket Data Source
 
 - API: CricAPI
 - Usage: Fetches player profile and batting stats used as analysis input.
@@ -73,7 +78,8 @@ The project has two main parts:
 - app.py: FastAPI server and analyze endpoint
 - analyst.py: Data fetch + LLM orchestration + response shaping
 - ui.py: Streamlit dashboard, TTS playback, visualizations
-- voice.py: Standalone voice interaction script (legacy/experimental flow)
+- stt.py: Whisper STT transcription + robust player-name extraction helpers
+- voice.py: Standalone voice interaction script using Whisper STT
 - requirements.txt: Python dependencies
 
 ## Setup Instructions
@@ -132,11 +138,13 @@ streamlit run ui.py
 - AI-generated head-to-head insights.
 - AI commentary with minimum-length handling.
 - TTS playback in English, Hindi, Kannada.
+- Whisper-based voice input for player-name detection.
 - Nickname and tagline mapping (for example: King -> Virat Kohli, Hitman -> Rohit Sharma).
 
 ## Notes
 
 - TTS depends on Google services availability and internet connection.
+- STT depends on GROQ_API_KEY and internet connectivity for Whisper transcription.
 - Player matching quality depends on CricAPI search results.
 - Nickname mapping can be extended in code for additional players.
 

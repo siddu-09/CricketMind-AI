@@ -38,6 +38,12 @@ COMMON_PLAYER_ALIASES = {
     "master blaster": "Sachin Tendulkar",
 }
 
+SUPPORTED_LANGUAGES = {
+    "en": "English",
+    "hi": "Hindi",
+    "kn": "Kannada",
+}
+
 
 def resolve_player_alias(name):
     clean_name = str(name or "").strip().lower()
@@ -79,8 +85,8 @@ def format_metric(value, decimals=2):
     return f"{value:.{decimals}f}"
 
 
-def build_minimum_commentary(player1, player2, p1_data, p2_data):
-    return (
+def build_minimum_commentary(player1, player2, p1_data, p2_data, language_code="en"):
+    english = (
         f"What a fascinating comparison between {player1} and {player2}. "
         f"{player1} currently has {p1_data.get('runs', 'N/A')} runs, an average of {p1_data.get('average', 'N/A')}, "
         f"and a strike rate of {p1_data.get('strike_rate', 'N/A')}. "
@@ -89,6 +95,57 @@ def build_minimum_commentary(player1, player2, p1_data, p2_data):
         "Both players show strong batting quality in this format, and the difference comes down to consistency, scoring pace, "
         "and match impact. This is a close contest with high quality on display from both stars."
     )
+
+    hindi = (
+        f"{player1} aur {player2} ke beech yeh tulna kaafi romanchak hai. "
+        f"{player1} ke paas abhi {p1_data.get('runs', 'N/A')} runs hain, average {p1_data.get('average', 'N/A')} hai, "
+        f"aur strike rate {p1_data.get('strike_rate', 'N/A')} hai. "
+        f"Dusri taraf {player2} ke paas {p2_data.get('runs', 'N/A')} runs, average {p2_data.get('average', 'N/A')} "
+        f"aur strike rate {p2_data.get('strike_rate', 'N/A')} hai. "
+        "Dono players ki batting quality strong hai, aur antar consistency, scoring pace aur match impact par depend karta hai. "
+        "Yeh mukabla kaafi close hai aur dono taraf se high quality performance dekhne ko milti hai."
+    )
+
+    kannada = (
+        f"{player1} mattu {player2} madhye idu tumba interesting comparison agide. "
+        f"{player1} hatra {p1_data.get('runs', 'N/A')} runs ide, average {p1_data.get('average', 'N/A')} ide, "
+        f"mattu strike rate {p1_data.get('strike_rate', 'N/A')} ide. "
+        f"Innondu kade {player2} hatra {p2_data.get('runs', 'N/A')} runs, average {p2_data.get('average', 'N/A')} "
+        f"mattu strike rate {p2_data.get('strike_rate', 'N/A')} ide. "
+        "Ibbara batting quality strong ide, mattu final vyatyasa consistency, scoring pace mattu match impact mele nirdharisuttade. "
+        "Idu close contest, ibbaru players inda uttama performance nodalu sigutte."
+    )
+
+    templates = {
+        "en": english,
+        "hi": hindi,
+        "kn": kannada,
+    }
+    return templates.get(language_code, english)
+
+
+def ensure_commentary_language(commentary, language_code):
+    text = str(commentary or "").strip()
+    if not text:
+        return ""
+    if language_code == "en":
+        return text
+
+    target_language = SUPPORTED_LANGUAGES.get(language_code, "English")
+    try:
+        prompt = (
+            f"Translate the following cricket commentary to {target_language}. "
+            "Keep player names and numbers unchanged. Return only translated text, no extra notes.\n\n"
+            f"Commentary:\n{text}"
+        )
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        translated = str(response.choices[0].message.content or "").strip()
+        return translated or text
+    except Exception:
+        return text
 
 def get_player_stats(player_name):
     """
@@ -200,13 +257,8 @@ def get_player_stats(player_name):
 
 
 def cricket_analyst(player1, player2, language="en"):
-    supported_languages = {
-        "en": "English",
-        "hi": "Hindi",
-        "kn": "Kannada",
-    }
     language_code = (language or "en").strip().lower()
-    if language_code not in supported_languages:
+    if language_code not in SUPPORTED_LANGUAGES:
         language_code = "en"
 
     player1 = resolve_player_alias(player1)
@@ -267,7 +319,7 @@ FORMAT:
 IMPORTANT:
 - Prediction must be one player name
 - Confidence must be percentage (0–100%)
-- Keep "commentary" in {supported_languages[language_code]}
+- Keep "commentary" in {SUPPORTED_LANGUAGES[language_code]}
 - "commentary" must be at least 50 words
 
 Compare these two players:
@@ -318,7 +370,9 @@ Compare these two players:
 
         commentary = str(parsed_output.get("commentary", "")).strip()
         if word_count(commentary) < 50:
-            parsed_output["commentary"] = build_minimum_commentary(player1, player2, p1_data, p2_data)
+            commentary = build_minimum_commentary(player1, player2, p1_data, p2_data, language_code)
+
+        parsed_output["commentary"] = ensure_commentary_language(commentary, language_code)
 
         return parsed_output
 

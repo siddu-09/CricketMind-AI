@@ -8,3 +8,5 @@ streamlit
 matplotlib
 numpy
 gTTS
+SpeechRecognition
+pyttsx3

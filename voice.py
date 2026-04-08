@@ -1,6 +1,7 @@
 import speech_recognition as sr
 import pyttsx3
 import requests
+from stt import transcribe_wav_bytes, extract_players_from_transcript
 
 # Initialize voice
 recognizer = sr.Recognizer()
@@ -17,45 +18,27 @@ def listen():
         print("🎤 Speak now...")
 
         recognizer.adjust_for_ambient_noise(source, duration=1)  # 🔥 important
+        try:
+            audio = recognizer.listen(source, timeout=8, phrase_time_limit=8)
+        except sr.WaitTimeoutError:
+            speak("You did not speak in time")
+            return ""
 
-        audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
+    wav_bytes = audio.get_wav_data(convert_rate=16000, convert_width=2)
+    text, error = transcribe_wav_bytes(wav_bytes, language="en")
 
-    try:
-        text = recognizer.recognize_google(audio)
-        print("You said:", text)
-        return text
-
-    except sr.WaitTimeoutError:
-        speak("You did not speak in time")
+    if error:
+        print(error)
+        speak(error)
         return ""
 
-    except sr.UnknownValueError:
-        speak("Sorry, I could not understand")
-        return ""
-
-    except sr.RequestError:
-        speak("Speech service error")
-        return ""
+    print("You said:", text)
+    return text
 
 
 # 🔥 Extract players from voice
 def extract_players(text):
-    text = text.lower()
-
-    # Normalize words
-    text = text.replace("versus", "vs")
-    text = text.replace("and", "vs")
-    text = text.replace("or", "vs")
-
-    parts = text.split("vs")
-
-    if len(parts) == 2:
-        p1 = parts[0].strip().title()
-        p2 = parts[1].strip().title()
-
-        return p1, p2
-
-    return None, None
+    return extract_players_from_transcript(text)
 
 
 # 🎤 MAIN FLOW
