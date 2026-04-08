@@ -387,6 +387,13 @@ if hasattr(st, "audio_input"):
   st.caption("Please say two player names.")
   voice_clip = st.audio_input("Record your voice")
 
+  if "last_voice_transcript" in st.session_state:
+    st.caption(f"Last transcript: {st.session_state.last_voice_transcript}")
+  if "last_voice_players" in st.session_state:
+    last_p1, last_p2 = st.session_state.last_voice_players
+    if last_p1 and last_p2:
+      st.info(f"Detected players from voice: {last_p1} vs {last_p2}")
+
   if st.button("Use Voice Input"):
     if voice_clip is None:
       st.warning("Please record your voice first.")
@@ -397,11 +404,14 @@ if hasattr(st, "audio_input"):
       if stt_error:
         st.error(stt_error)
       else:
+        st.session_state.last_voice_transcript = transcript
         st.caption(f"Transcript: {transcript}")
         p1_voice, p2_voice = extract_players_from_transcript(transcript)
+        st.session_state.last_voice_players = (p1_voice, p2_voice)
         if not p1_voice or not p2_voice:
           st.warning("Could not detect two player names. Try saying full names clearly.")
         else:
+          st.info(f"Detected players from voice: {p1_voice} vs {p2_voice}")
           st.session_state.pending_player1 = p1_voice
           st.session_state.pending_player2 = p2_voice
           st.rerun()
