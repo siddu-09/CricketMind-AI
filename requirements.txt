@@ -7,3 +7,4 @@ requests
 streamlit
 matplotlib
 numpy
+gTTS

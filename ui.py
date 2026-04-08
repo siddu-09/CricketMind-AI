@@ -1,3 +1,6 @@
+from io import BytesIO
+
+from gtts import gTTS
 import matplotlib.pyplot as plt
 import numpy as np
 import requests
@@ -5,6 +8,11 @@ import streamlit as st
 
 
 BACKEND_URL = "http://127.0.0.1:8000/analyze"
+LANGUAGE_OPTIONS = {
+  "English": "en",
+  "Hindi": "hi",
+  "Kannada": "kn",
+}
 
 
 st.set_page_config(
@@ -217,10 +225,27 @@ def draw_radar(name1, name2, stats1, stats2):
     st.pyplot(fig, use_container_width=False)
 
 
-def call_backend(player1, player2):
+@st.cache_data(show_spinner=False)
+def generate_tts_audio(text, language_code):
+  clean_text = (text or "").strip()
+  if not clean_text:
+    return b""
+
+  audio_fp = BytesIO()
+  tts = gTTS(text=clean_text, lang=language_code, slow=False)
+  tts.write_to_fp(audio_fp)
+  audio_fp.seek(0)
+  return audio_fp.read()
+
+
+def call_backend(player1, player2, language):
     return requests.post(
         BACKEND_URL,
-        json={"player1": player1.strip(), "player2": player2.strip()},
+    json={
+      "player1": player1.strip(),
+      "player2": player2.strip(),
+      "language": language,
+    },
         timeout=60,
     )
 
@@ -246,6 +271,13 @@ with input_col1:
 with input_col2:
     player2 = st.text_input("Player 2", key="player2", placeholder="e.g. Rohit Sharma")
 
+language_label = st.selectbox(
+  "Commentary language",
+  options=list(LANGUAGE_OPTIONS.keys()),
+  index=0,
+)
+selected_language = LANGUAGE_OPTIONS[language_label]
+
 compare_clicked = st.button("Compare Players", type="primary")
 
 if compare_clicked:
@@ -256,7 +288,7 @@ if compare_clicked:
     else:
         with st.spinner("Fetching live stats and generating analysis..."):
             try:
-                response = call_backend(player1, player2)
+                response = call_backend(player1, player2, selected_language)
             except requests.RequestException as exc:
                 st.error(f"Could not reach backend at {BACKEND_URL}: {exc}")
                 st.stop()
@@ -294,8 +326,16 @@ if compare_clicked:
             for item in result.get("comparison", []):
                 st.write(f"- {item}")
 
-            st.subheader("Commentary")
-            st.info(result.get("commentary", "No commentary returned."))
+            commentary_text = result.get("commentary", "No commentary returned.")
+            st.subheader(f"Commentary ({language_label})")
+            st.info(commentary_text)
+
+            try:
+              audio_bytes = generate_tts_audio(commentary_text, selected_language)
+              if audio_bytes:
+                st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+            except Exception as exc:
+              st.warning(f"Could not generate commentary audio: {exc}")
 
             st.subheader("Verdict")
             st.success(result.get("verdict", "No verdict returned."))
