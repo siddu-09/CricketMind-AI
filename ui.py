@@ -52,26 +52,23 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap');
 
 :root {
-  --ink: #132a13;
-  --card: #f8f4e8;
-  --surface: #fffdf7;
-  --accent: #ff7a00;
-  --accent-2: #1b4332;
-  --muted: #5f6f52;
+  --ink: #111827;
+  --surface: #f4f6f9;
+  --panel: #ffffff;
+  --accent: #cc1f2f;
+  --border: #d6dbe3;
+  --muted: #4b5563;
 }
 
 html, body, [class*="css"] {
-  font-family: 'IBM Plex Sans', sans-serif;
+  font-family: 'Source Sans 3', sans-serif;
 }
 
 .stApp {
-  background:
-    radial-gradient(circle at 10% 10%, #ffe9c8 0%, transparent 30%),
-    radial-gradient(circle at 90% 30%, #d8f3dc 0%, transparent 35%),
-    linear-gradient(145deg, #fffef8 0%, #f5f7f1 60%, #fff8ed 100%);
+  background: var(--surface);
 }
 
 /* Global readability on light theme */
@@ -89,18 +86,19 @@ div[data-testid="stMarkdownContainer"] {
 }
 
 h1, h2, h3 {
-  font-family: 'Space Grotesk', sans-serif;
-  letter-spacing: -0.02em;
+  font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: 0.01em;
   color: var(--ink);
+  text-transform: uppercase;
 }
 
 .hero {
-  background: linear-gradient(120deg, #1b4332 0%, #2d6a4f 65%, #40916c 100%);
-  border-radius: 18px;
-  color: white;
-  padding: 24px;
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 10px;
+  color: #ffffff;
+  padding: 18px 20px;
   margin-bottom: 12px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
 }
 
 .hero p {
@@ -114,9 +112,10 @@ h1, h2, h3 {
 }
 
 .metric-card {
-  background: var(--card);
-  border-left: 6px solid var(--accent);
-  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
   padding: 12px 14px;
   margin: 8px 0;
 }
@@ -127,18 +126,19 @@ h1, h2, h3 {
 }
 
 .metric-value {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Barlow Condensed', sans-serif;
   color: var(--ink);
-  font-size: 1.25rem;
+  font-size: 1.4rem;
   font-weight: 700;
 }
 
 .tag {
   display: inline-block;
-  border-radius: 999px;
+  border-radius: 6px;
   padding: 4px 10px;
-  background: #ffe8d6;
-  color: #7f4f24;
+  background: #eef2f7;
+  color: #1f2937;
+  border: 1px solid var(--border);
   font-size: 0.78rem;
   margin-top: 6px;
 }
@@ -154,31 +154,37 @@ div[data-testid="stMetricLabel"] {
 /* Form controls */
 div[data-baseweb="input"] input {
   color: var(--ink) !important;
-  background-color: #fffef9 !important;
+  background-color: #ffffff !important;
+  border: 1px solid var(--border) !important;
 }
 
 div[data-baseweb="input"] input::placeholder {
-  color: #6b705c !important;
+  color: #6b7280 !important;
   opacity: 1 !important;
 }
 
 /* Alert readability */
 div[data-testid="stAlert"] p,
 div[data-testid="stAlert"] span {
-  color: #132a13 !important;
+  color: #111827 !important;
 }
 
 .stButton > button {
   width: 100%;
-  height: 3rem;
-  border-radius: 12px;
-  border: 1px solid #1b4332;
-  font-weight: 600;
+  height: 2.8rem;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  color: #ffffff;
+  background: var(--accent);
+  font-weight: 700;
+  font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: 0.02em;
 }
 
 .stButton > button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: #a51926;
+  background: #a51926;
+  color: #ffffff;
 }
 
 #MainMenu, footer, header {
@@ -241,8 +247,8 @@ def draw_bar_comparison(name1, name2, stats1, stats2):
   run_x = np.arange(1)
   width = 0.34
   ax_runs.set_facecolor("#fffdf7")
-  ax_runs.bar(run_x - width / 2, [runs1], width, label=name1, color="#ff7a00", alpha=0.9)
-  ax_runs.bar(run_x + width / 2, [runs2], width, label=name2, color="#1b4332", alpha=0.9)
+  ax_runs.bar(run_x - width / 2, [runs1], width, label=name1, color="#cc1f2f", alpha=0.9)
+  ax_runs.bar(run_x + width / 2, [runs2], width, label=name2, color="#1f2937", alpha=0.9)
   ax_runs.set_xticks(run_x)
   ax_runs.set_xticklabels(["Runs"])
   ax_runs.set_ylabel("Runs")
@@ -254,8 +260,8 @@ def draw_bar_comparison(name1, name2, stats1, stats2):
   metric_x = np.arange(len(metric_labels))
 
   ax_other.set_facecolor("#fffdf7")
-  ax_other.bar(metric_x - width / 2, values1, width, label=name1, color="#ff7a00", alpha=0.9)
-  ax_other.bar(metric_x + width / 2, values2, width, label=name2, color="#1b4332", alpha=0.9)
+  ax_other.bar(metric_x - width / 2, values1, width, label=name1, color="#cc1f2f", alpha=0.9)
+  ax_other.bar(metric_x + width / 2, values2, width, label=name2, color="#1f2937", alpha=0.9)
   ax_other.set_xticks(metric_x)
   ax_other.set_xticklabels(metric_labels)
   ax_other.set_ylabel("Value")
