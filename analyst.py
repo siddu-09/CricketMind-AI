@@ -63,6 +63,22 @@ def word_count(text):
     return len([w for w in str(text or "").strip().split() if w])
 
 
+def to_number(value):
+    try:
+        cleaned = str(value).replace(",", "").strip()
+        if cleaned in {"", "-", "N/A", "na", "none"}:
+            return 0.0
+        return float(cleaned)
+    except Exception:
+        return 0.0
+
+
+def format_metric(value, decimals=2):
+    if abs(value - round(value)) < 1e-9:
+        return str(int(round(value)))
+    return f"{value:.{decimals}f}"
+
+
 def build_minimum_commentary(player1, player2, p1_data, p2_data):
     return (
         f"What a fascinating comparison between {player1} and {player2}. "
@@ -113,40 +129,71 @@ def get_player_stats(player_name):
         if not stat_rows:
             return None
 
-        # Prefer ODI, then T20I, then Test, then first available batting format.
-        preferred_formats = ["odi", "t20i", "test", "t20", "firstclass", "lista"]
-        batting = {}
-        selected_format = "unknown"
+        target_formats = ["odi", "t20i", "test"]
+        batting_by_format = {}
 
-        for fmt in preferred_formats:
+        for fmt in target_formats:
             current = {
                 row.get("stat"): row.get("value")
                 for row in stat_rows
                 if row.get("fn") == "batting" and str(row.get("matchtype", "")).lower() == fmt
             }
             if current:
-                batting = current
-                selected_format = fmt
-                break
+                batting_by_format[fmt] = current
 
-        if not batting:
-            batting = {
-                row.get("stat"): row.get("value")
-                for row in stat_rows
-                if row.get("fn") == "batting"
-            }
-            if batting:
-                selected_format = "batting_any"
-
-        if not batting:
+        if not batting_by_format:
             return None
 
+        total_runs = 0.0
+        weighted_avg_sum = 0.0
+        weighted_sr_sum = 0.0
+        total_innings = 0.0
+
+        avg_values = []
+        sr_values = []
+
+        format_breakdown = {}
+        for fmt, batting in batting_by_format.items():
+            runs = to_number(batting.get("runs"))
+            avg = to_number(batting.get("avg"))
+            sr = to_number(batting.get("sr"))
+            innings = to_number(batting.get("innings"))
+
+            total_runs += runs
+
+            if innings > 0:
+                weighted_avg_sum += avg * innings
+                weighted_sr_sum += sr * innings
+                total_innings += innings
+
+            if avg > 0:
+                avg_values.append(avg)
+            if sr > 0:
+                sr_values.append(sr)
+
+            format_breakdown[fmt] = {
+                "runs": format_metric(runs, 0),
+                "average": format_metric(avg),
+                "strike_rate": format_metric(sr),
+                "innings": format_metric(innings, 0),
+            }
+
+        if total_innings > 0:
+            combined_avg = weighted_avg_sum / total_innings
+            combined_sr = weighted_sr_sum / total_innings
+        else:
+            combined_avg = sum(avg_values) / len(avg_values) if avg_values else 0.0
+            combined_sr = sum(sr_values) / len(sr_values) if sr_values else 0.0
+
+        selected_format = "+".join([fmt.upper() for fmt in target_formats if fmt in batting_by_format])
+
         return {
-            "runs": batting.get("runs", "N/A"),
-            "average": batting.get("avg", "N/A"),
-            "strike_rate": batting.get("sr", "N/A"),
+            "runs": format_metric(total_runs, 0),
+            "average": format_metric(combined_avg),
+            "strike_rate": format_metric(combined_sr),
             "format_used": selected_format,
             "player_name": resolved_name,
+            "format_breakdown": format_breakdown,
         }
     except Exception:
         return None
@@ -182,6 +229,8 @@ You are BOTH:
 
 Use this data:
 {player1}: {p1_data}\n{player2}: {p2_data}
+
+Note: runs/average/strike_rate are combined from ODI, T20I, and Test formats.
 
 STRICT RULES:
 - Use ONLY the given data
