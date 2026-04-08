@@ -1,3 +1,13 @@
+---
+title: CricketMind AI
+emoji: "🏏"
+colorFrom: green
+colorTo: orange
+sdk: docker
+app_port: 8501
+pinned: false
+---
+
 # CricketMind AI
 
 CricketMind AI is a player-vs-player cricket comparison app that combines live stats, AI analysis, speech input, and spoken commentary.
@@ -133,3 +143,49 @@ streamlit run ui.py
 - STT and TTS depend on Google services availability and internet connection.
 - Player matching quality depends on CricAPI search results.
 - Nickname mapping can be extended in code for additional players.
+
+## Deploy on Hugging Face Spaces
+
+This project is configured for Hugging Face Docker Spaces.
+
+### Files Used for Deployment
+
+- Dockerfile: Builds the app container
+- start.sh: Starts FastAPI backend (port 8000) + Streamlit UI (port 8501)
+- .dockerignore: Excludes local/secret files from Docker build context
+
+### Steps
+
+1. Create a new Space on Hugging Face
+
+- Space type: Docker
+- Visibility: your choice (public/private)
+
+2. Push this repository to the Space
+
+- Add Space remote and push your code, or upload all files via the Space UI.
+
+3. Add required Secrets in Space Settings
+
+- GROQ_API_KEY
+- CRICAPI_KEY
+
+4. Wait for build and startup
+
+- Hugging Face will build the Docker image using Dockerfile.
+- The app is served through Streamlit on port 8501.
+
+### Deploy Using Git (Example)
+
+```bash
+git init
+git add .
+git commit -m "Deploy CricketMind AI to Hugging Face Spaces"
+git remote add space https://huggingface.co/spaces/<username>/<space-name>
+git push --force space main
+```
+
+### Important Runtime Notes
+
+- Keep BACKEND_URL as default (http://127.0.0.1:8000/analyze) for Docker Space runtime.
+- If STT transcription quality varies, speak clearly and include separators like "vs" or "versus".

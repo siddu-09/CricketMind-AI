@@ -1,4 +1,5 @@
 from io import BytesIO
+import os
 import re
 
 from gtts import gTTS
@@ -9,7 +10,7 @@ import speech_recognition as sr
 import streamlit as st
 
 
-BACKEND_URL = "http://127.0.0.1:8000/analyze"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000/analyze")
 LANGUAGE_OPTIONS = {
   "English": "en",
   "Hindi": "hi",
