@@ -10,9 +10,9 @@ pinned: false
 
 # CricketMind AI
 
-CricketMind AI is a player-vs-player cricket comparison app that combines live stats, AI analysis, speech input, and spoken commentary.
+CricketMind AI is a player-vs-player cricket comparison app that combines live stats, AI analysis, and spoken commentary.
 
-You can compare two cricketers using text or voice, view a stat-driven comparison dashboard, and listen to generated commentary in multiple languages.
+You can compare two cricketers using text input, view a stat-driven comparison dashboard, and listen to generated commentary in multiple languages.
 
 ## Project Description
 
@@ -28,7 +28,7 @@ The project has two main parts:
 
 2. Frontend UI (Streamlit)
 
-- Provides player input via text and speech-to-text.
+- Provides player input via text.
 - Supports nickname/tagline resolution (for example: "King", "Hitman", "Thala").
 - Sends requests to backend and renders cards, radar chart, insights, verdict, and confidence.
 - Generates and auto-plays text-to-speech commentary.
@@ -42,18 +42,12 @@ The project has two main parts:
 - Model: llama-3.3-70b-versatile
 - Usage: Generates structured cricket comparison output in JSON format.
 
-2. Speech-to-Text (STT)
-
-- Engine: Google Web Speech API (via Python SpeechRecognition library)
-- Function used: recognize_google
-- Usage: Converts user-recorded speech into text to capture player names.
-
-3. Text-to-Speech (TTS)
+2. Text-to-Speech (TTS)
 
 - Engine: Google Text-to-Speech (gTTS)
 - Usage: Converts generated AI commentary to MP3 audio for playback.
 
-4. External Cricket Data Source
+3. External Cricket Data Source
 
 - API: CricAPI
 - Usage: Fetches player profile and batting stats used as analysis input.
@@ -68,14 +62,13 @@ The project has two main parts:
 - matplotlib
 - numpy
 - gTTS
-- SpeechRecognition
 - python-dotenv
 
 ## Repository Structure
 
 - app.py: FastAPI server and analyze endpoint
 - analyst.py: Data fetch + LLM orchestration + response shaping
-- ui.py: Streamlit dashboard, STT input, TTS playback, visualizations
+- ui.py: Streamlit dashboard, TTS playback, visualizations
 - voice.py: Standalone voice interaction script (legacy/experimental flow)
 - requirements.txt: Python dependencies
 
@@ -135,12 +128,11 @@ streamlit run ui.py
 - AI-generated head-to-head insights.
 - AI commentary with minimum-length handling.
 - TTS playback in English, Hindi, Kannada.
-- STT-based player input from microphone.
 - Nickname and tagline mapping (for example: King -> Virat Kohli, Hitman -> Rohit Sharma).
 
 ## Notes
 
-- STT and TTS depend on Google services availability and internet connection.
+- TTS depends on Google services availability and internet connection.
 - Player matching quality depends on CricAPI search results.
 - Nickname mapping can be extended in code for additional players.
 
@@ -188,4 +180,4 @@ git push --force space main
 ### Important Runtime Notes
 
 - Keep BACKEND_URL as default (http://127.0.0.1:8000/analyze) for Docker Space runtime.
-- If STT transcription quality varies, speak clearly and include separators like "vs" or "versus".
+- If TTS audio generation is slow, retry after a few seconds.
