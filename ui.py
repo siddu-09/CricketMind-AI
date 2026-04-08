@@ -1,286 +1,309 @@
-import streamlit as st
-import requests
 import matplotlib.pyplot as plt
 import numpy as np
-import speech_recognition as sr
-import pyttsx3
-from gtts import gTTS
-import os
+import requests
+import streamlit as st
 
-st.set_page_config(page_title="CricketMind AI", layout="wide", initial_sidebar_state="collapsed")
 
-# -------------------------------
-# CUSTOM CSS
-# -------------------------------
-st.markdown("""
+BACKEND_URL = "http://127.0.0.1:8000/analyze"
+
+
+st.set_page_config(
+    page_title="CricketMind AI",
+    page_icon="🏏",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+st.markdown(
+    """
 <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        max-width: 1200px;
-    }
-    div[data-testid="stMetricValue"] {
-        font-size: 1.8rem;
-        color: #1E88E5;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        height: 3rem;
-        font-weight: bold;
-        transition: 0.3s;
-    }
-    .stButton>button:hover {
-        border-color: #1E88E5;
-        color: #1E88E5;
-    }
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+:root {
+  --ink: #132a13;
+  --card: #f8f4e8;
+  --surface: #fffdf7;
+  --accent: #ff7a00;
+  --accent-2: #1b4332;
+  --muted: #5f6f52;
+}
+
+html, body, [class*="css"] {
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.stApp {
+  background:
+    radial-gradient(circle at 10% 10%, #ffe9c8 0%, transparent 30%),
+    radial-gradient(circle at 90% 30%, #d8f3dc 0%, transparent 35%),
+    linear-gradient(145deg, #fffef8 0%, #f5f7f1 60%, #fff8ed 100%);
+}
+
+/* Global readability on light theme */
+.stApp,
+.stApp p,
+.stApp span,
+.stApp li,
+.stApp label,
+.stMarkdown,
+.stMarkdown p,
+.stMarkdown li,
+div[data-testid="stText"],
+div[data-testid="stMarkdownContainer"] {
+  color: var(--ink) !important;
+}
+
+h1, h2, h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.hero {
+  background: linear-gradient(120deg, #1b4332 0%, #2d6a4f 65%, #40916c 100%);
+  border-radius: 18px;
+  color: white;
+  padding: 24px;
+  margin-bottom: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+
+.hero p {
+  margin-bottom: 0;
+  opacity: 0.92;
+}
+
+.hero h1,
+.hero p {
+  color: #ffffff !important;
+}
+
+.metric-card {
+  background: var(--card);
+  border-left: 6px solid var(--accent);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin: 8px 0;
+}
+
+.metric-title {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.metric-value {
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--ink);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.tag {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #ffe8d6;
+  color: #7f4f24;
+  font-size: 0.78rem;
+  margin-top: 6px;
+}
+
+div[data-testid="stMetricValue"] {
+  color: var(--ink);
+}
+
+div[data-testid="stMetricLabel"] {
+  color: var(--muted) !important;
+}
+
+/* Form controls */
+div[data-baseweb="input"] input {
+  color: var(--ink) !important;
+  background-color: #fffef9 !important;
+}
+
+div[data-baseweb="input"] input::placeholder {
+  color: #6b705c !important;
+  opacity: 1 !important;
+}
+
+/* Alert readability */
+div[data-testid="stAlert"] p,
+div[data-testid="stAlert"] span {
+  color: #132a13 !important;
+}
+
+.stButton > button {
+  width: 100%;
+  height: 3rem;
+  border-radius: 12px;
+  border: 1px solid #1b4332;
+  font-weight: 600;
+}
+
+.stButton > button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#MainMenu, footer, header {
+  visibility: hidden;
+}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-# -------------------------------
-# INIT VOICE
-# -------------------------------
-recognizer = sr.Recognizer()
-engine = pyttsx3.init()
 
-def speak(text):
-    engine.say(text)
-    engine.runAndWait()
-
-def play_frontend_audio(text):
+def to_float(value):
     try:
-        tts = gTTS(text=text, lang='en')
-        tts.save("temp_audio.mp3")
-        with open("temp_audio.mp3", "rb") as f:
-            audio_bytes = f.read()
-        st.audio(audio_bytes, format="audio/mp3", autoplay=True)
-        os.remove("temp_audio.mp3")
-    except Exception as e:
-        st.error(f"Could not generate audio: {e}")
+        return float(str(value).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return 0.0
 
-def listen():
-    with sr.Microphone() as source:
-        st.info("Listening... Speak now")
-        recognizer.adjust_for_ambient_noise(source, duration=1)
-        audio = recognizer.listen(source, timeout=5, phrase_time_limit=5)
 
-    try:
-        text = recognizer.recognize_google(audio)
-        st.success(f"You said: {text}")
-        return text
-    except:
-        st.error("Could not understand voice")
-        return ""
-
-def extract_players(text):
-    text = text.lower()
-    text = text.replace("versus", "vs")
-    text = text.replace("and", "vs")
-    text = text.replace("or", "vs")
-
-    parts = text.split("vs")
-
-    if len(parts) == 2:
-        p1 = parts[0].strip().title()
-        p2 = parts[1].strip().title()
-        return p1, p2
-
-    return None, None
-
-# -------------------------------
-# NORMALIZATION
-# -------------------------------
-def normalize_pair(v1, v2):
-    max_vals = [max(a, b) for a, b in zip(v1, v2)]
+def normalize_pair(values1, values2):
+    max_vals = [max(a, b) for a, b in zip(values1, values2)]
     return (
-        [a/m if m != 0 else 0 for a, m in zip(v1, max_vals)],
-        [b/m if m != 0 else 0 for b, m in zip(v2, max_vals)]
+        [a / m if m else 0 for a, m in zip(values1, max_vals)],
+        [b / m if m else 0 for b, m in zip(values2, max_vals)],
     )
 
-# -------------------------------
-# RESULT FUNCTION
-# -------------------------------
-def show_results(data):
 
-    st.subheader("Player Performance Breakdown")
+def player_block(title, stats, format_used):
+    st.markdown(f"### {title}")
+    st.markdown(
+        f"""
+        <div class="metric-card">
+          <div class="metric-title">Runs</div>
+          <div class="metric-value">{stats.get('runs', 'N/A')}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Average</div>
+          <div class="metric-value">{stats.get('average', 'N/A')}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Strike Rate</div>
+          <div class="metric-value">{stats.get('strike_rate', 'N/A')}</div>
+        </div>
+        <span class="tag">Stats Basis: {format_used.upper()}</span>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    analysis = data["analysis"]
-    players = list(analysis.keys())
-    p1, p2 = players[0], players[1]
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown(f"<h3 style='text-align: center; color: #4CAF50;'>{p1.replace('_',' ').title()}</h3>", unsafe_allow_html=True)
-        st.divider()
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Runs", analysis[p1].get("runs", 0))
-        m2.metric("Average", analysis[p1].get("average", 0))
-        m3.metric("Strike Rate", analysis[p1].get("strike_rate", 0))
-        
-        m4, m5, m6 = st.columns(3)
-        m4.metric("Centuries", analysis[p1].get("centuries", "N/A"))
-        m5.metric("Fifties", analysis[p1].get("fifties", "N/A"))
-        m6.metric("Highest", analysis[p1].get("highest_score", "N/A"))
-
-    with col2:
-        st.markdown(f"<h3 style='text-align: center; color: #F44336;'>{p2.replace('_',' ').title()}</h3>", unsafe_allow_html=True)
-        st.divider()
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Runs", analysis[p2].get("runs", 0))
-        m2.metric("Average", analysis[p2].get("average", 0))
-        m3.metric("Strike Rate", analysis[p2].get("strike_rate", 0))
-        
-        m4, m5, m6 = st.columns(3)
-        m4.metric("Centuries", analysis[p2].get("centuries", "N/A"))
-        m5.metric("Fifties", analysis[p2].get("fifties", "N/A"))
-        m6.metric("Highest", analysis[p2].get("highest_score", "N/A"))
-        
-    st.divider()
-
-    # Radar chart
-    st.subheader("Visual Performance Radar")
-
+def draw_radar(name1, name2, stats1, stats2):
     labels = ["Runs", "Average", "Strike Rate"]
+    raw1 = [to_float(stats1.get("runs")), to_float(stats1.get("average")), to_float(stats1.get("strike_rate"))]
+    raw2 = [to_float(stats2.get("runs")), to_float(stats2.get("average")), to_float(stats2.get("strike_rate"))]
+    v1, v2 = normalize_pair(raw1, raw2)
 
-    p1_raw = [float(analysis[p1]["runs"]), float(analysis[p1]["average"]), float(analysis[p1]["strike_rate"])]
-    p2_raw = [float(analysis[p2]["runs"]), float(analysis[p2]["average"]), float(analysis[p2]["strike_rate"])]
-
-    p1_values, p2_values = normalize_pair(p1_raw, p2_raw)
-
-    p1_values += p1_values[:1]
-    p2_values += p2_values[:1]
-
-    angles = np.linspace(0, 2*np.pi, len(labels), endpoint=False).tolist()
+    v1 += v1[:1]
+    v2 += v2[:1]
+    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
     angles += angles[:1]
 
-    fig, ax = plt.subplots(subplot_kw=dict(polar=True))
-
-    ax.plot(angles, p1_values, label=p1)
-    ax.fill(angles, p1_values, alpha=0.25)
-
-    ax.plot(angles, p2_values, label=p2)
-    ax.fill(angles, p2_values, alpha=0.25)
-
+    fig, ax = plt.subplots(figsize=(4.2, 4.2), subplot_kw={"polar": True})
+    ax.set_facecolor("#fffdf7")
+    ax.plot(angles, v1, linewidth=2.2, label=name1, color="#ff7a00")
+    ax.fill(angles, v1, alpha=0.22, color="#ff7a00")
+    ax.plot(angles, v2, linewidth=2.2, label=name2, color="#1b4332")
+    ax.fill(angles, v2, alpha=0.22, color="#1b4332")
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels(labels)
-
-    ax.legend()
-    st.pyplot(fig)
-
-    # Comparison
-    st.subheader("Head-to-Head Insights")
-    for point in data["comparison"]:
-        st.write("•", point)
-
-    # Commentary
-    st.subheader("Expert AI Commentary")
-    st.info(data["commentary"])
-    
-    text_to_speak = f"{data['commentary']} {data['verdict']}"
-    play_frontend_audio(text_to_speak)
-
-    # Verdict
-    st.subheader("Final Verdict & Analysis")
-    st.success(data["verdict"])
-
-    # Prediction
-    st.write("---")
-    st.subheader("Match Outcome Prediction")
-
-    winner = data["prediction"]
-    confidence = data["confidence"]
-
-    pred_col1, pred_col2 = st.columns([1, 2])
-    
-    with pred_col1:
-        st.metric(label="Predicted Winner", value=winner.replace('_',' ').title())
-        st.metric(label="Confidence Level", value=f"{confidence}%")
-        
-    with pred_col2:
-        if winner.lower().replace(" ", "_") == p1.lower():
-            st.success(f"🏏 {p1.replace('_',' ').title()} is predicted to win this matchup!")
-        else:
-            st.success(f"🏏 {p2.replace('_',' ').title()} is predicted to win this matchup!")
-        
-        try:
-            st.progress(min(int(float(confidence)), 100))
-        except:
-            pass
+    ax.set_yticklabels([])
+    ax.grid(alpha=0.25)
+    ax.legend(loc="upper right", bbox_to_anchor=(1.2, 1.1))
+    st.pyplot(fig, use_container_width=False)
 
 
-# -------------------------------
-# UI START
-# -------------------------------
-st.markdown("<h1 style='text-align: center; color: #1E88E5;'>🏏 CricketMind AI</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #555; font-size: 1.1rem;'>AI-powered cricket analytics comparing player performance, strengths, and match predictions.</p>", unsafe_allow_html=True)
-st.write("---")
+def call_backend(player1, player2):
+    return requests.post(
+        BACKEND_URL,
+        json={"player1": player1.strip(), "player2": player2.strip()},
+        timeout=60,
+    )
 
-# -------------------------------
-# SESSION STATE
-# -------------------------------
+
+st.markdown(
+    """
+    <section class="hero">
+      <h1>CricketMind AI</h1>
+      <p>Live player-vs-player analytics powered by CricketData API + LLM commentary.</p>
+    </section>
+    """,
+    unsafe_allow_html=True,
+)
+
 if "player1" not in st.session_state:
     st.session_state.player1 = "Virat Kohli"
-
 if "player2" not in st.session_state:
     st.session_state.player2 = "Rohit Sharma"
 
-# -------------------------------
-# SELECT PLAYERS
-# -------------------------------
-col1, col2 = st.columns(2)
-with col1:
-    player1 = st.text_input("Enter Player 1", key="player1")
-with col2:
-    player2 = st.text_input("Enter Player 2", key="player2")
+input_col1, input_col2 = st.columns(2)
+with input_col1:
+    player1 = st.text_input("Player 1", key="player1", placeholder="e.g. Virat Kohli")
+with input_col2:
+    player2 = st.text_input("Player 2", key="player2", placeholder="e.g. Rohit Sharma")
 
-if player1 == player2:
-    st.warning("Please select two different players")
-    st.stop()
+compare_clicked = st.button("Compare Players", type="primary")
 
-# -------------------------------
-# ACTION BUTTONS
-# -------------------------------
-st.write("") # spacing
-btn_col1, btn_col2, btn_col3 = st.columns([1, 2, 1])
+if compare_clicked:
+    if not player1.strip() or not player2.strip():
+        st.error("Please enter both player names.")
+    elif player1.strip().lower() == player2.strip().lower():
+        st.warning("Please enter two different players.")
+    else:
+        with st.spinner("Fetching live stats and generating analysis..."):
+            try:
+                response = call_backend(player1, player2)
+            except requests.RequestException as exc:
+                st.error(f"Could not reach backend at {BACKEND_URL}: {exc}")
+                st.stop()
 
-action_clicked = False
-with btn_col1:
-    if st.button("🎤 Speak Players", key="voice_btn"):
-        query = listen()
-        if query:
-            p1, p2 = extract_players(query)
-            if p1 and p2:
-                player1 = p1
-                player2 = p2
-                action_clicked = True
-                st.success(f"Selected: {p1.replace('_',' ').title()} vs {p2.replace('_',' ').title()}")
-            else:
-                st.error("Could not detect two valid players from your voice.")
-        
-with btn_col3:
-    if st.button("⚖️ Compare Players", type="primary", key="compare_btn"):
-        action_clicked = True
+            if response.status_code != 200:
+                st.error(f"Backend request failed with status code {response.status_code}.")
+                st.stop()
 
-# -------------------------------
-# EXECUTE COMPARISON
-# -------------------------------
-if action_clicked:
-    with st.spinner('Analyzing player data and generating expert commentary...'):
-        response = requests.post(
-            "http://127.0.0.1:8000/analyze",
-            json={"player1": player1, "player2": player2}
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("status") == "error":
-                st.error(data["message"])
-            else:
-                st.write("---")
-                show_results(data)
-        else:
-            st.error("Could not connect to the backend server. Is it running?")
+            result = response.json()
+            if result.get("status") == "error":
+                st.error(result.get("message", "Unknown API error."))
+                st.stop()
+
+            analysis = result.get("analysis", {})
+            keys = list(analysis.keys())
+            if len(keys) < 2:
+                st.error("Unexpected response format: analysis data missing.")
+                st.stop()
+
+            k1, k2 = keys[0], keys[1]
+            stats1, stats2 = analysis[k1], analysis[k2]
+            formats = result.get("format_used", {})
+
+            st.write("")
+            c1, c2 = st.columns(2)
+            with c1:
+                player_block(player1.title(), stats1, formats.get("player1", "unknown"))
+            with c2:
+                player_block(player2.title(), stats2, formats.get("player2", "unknown"))
+
+            st.subheader("Performance Radar")
+            draw_radar(player1.title(), player2.title(), stats1, stats2)
+
+            st.subheader("Head-to-Head Insights")
+            for item in result.get("comparison", []):
+                st.write(f"- {item}")
+
+            st.subheader("Commentary")
+            st.info(result.get("commentary", "No commentary returned."))
+
+            st.subheader("Verdict")
+            st.success(result.get("verdict", "No verdict returned."))
+
+            winner = result.get("prediction", "Unknown")
+            confidence = result.get("confidence", 0)
+            m1, m2 = st.columns(2)
+            with m1:
+                st.metric("Predicted Winner", winner)
+            with m2:
+                st.metric("Confidence", f"{confidence}%")
