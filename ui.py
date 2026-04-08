@@ -3,6 +3,7 @@ import os
 import re
 
 from gtts import gTTS
+from groq import Groq
 import matplotlib.pyplot as plt
 import numpy as np
 import requests
@@ -17,9 +18,9 @@ LANGUAGE_OPTIONS = {
   "Kannada": "kn",
 }
 STT_LANGUAGE_OPTIONS = {
-    "English": "en-IN",
-    "Hindi": "hi-IN",
-    "Kannada": "kn-IN",
+  "English": {"google": "en-IN", "groq": "en"},
+  "Hindi": {"google": "hi-IN", "groq": "hi"},
+  "Kannada": {"google": "kn-IN", "groq": "kn"},
 }
 COMMON_PLAYER_ALIASES = {
     "kohli": "Virat Kohli",
@@ -45,6 +46,7 @@ COMMON_PLAYER_ALIASES = {
   "master blaster": "Sachin Tendulkar",
 }
 recognizer = sr.Recognizer()
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY")) if os.getenv("GROQ_API_KEY") else None
 
 
 st.set_page_config(
@@ -321,9 +323,38 @@ def resolve_player_alias(name):
     return str(name).strip().title()
 
 
-def transcribe_speech(audio_file, stt_language_code):
+def transcribe_with_groq(audio_file, groq_language_code):
+  if groq_client is None or audio_file is None:
+    return ""
+
+  audio_bytes = audio_file.getvalue()
+  if not audio_bytes:
+    return ""
+
+  filename = getattr(audio_file, "name", "speech_input.wav")
+  if "." not in filename:
+    filename = "speech_input.wav"
+
+  try:
+    transcript = groq_client.audio.transcriptions.create(
+      file=(filename, audio_bytes),
+      model="whisper-large-v3-turbo",
+      language=groq_language_code,
+      response_format="json",
+    )
+    return str(getattr(transcript, "text", "")).strip()
+  except Exception:
+    return ""
+
+
+def transcribe_speech(audio_file, google_language_code, groq_language_code):
     if audio_file is None:
         return ""
+
+  # Primary STT: Groq Whisper (more robust for accents/noisy audio on Spaces).
+  groq_text = transcribe_with_groq(audio_file, groq_language_code)
+  if groq_text:
+    return groq_text
 
     audio_bytes = audio_file.getvalue()
     if not audio_bytes:
@@ -333,13 +364,13 @@ def transcribe_speech(audio_file, stt_language_code):
         audio_data = recognizer.record(source)
 
     try:
-      return recognizer.recognize_google(audio_data, language=stt_language_code)
+    return recognizer.recognize_google(audio_data, language=google_language_code)
     except sr.UnknownValueError:
-      # Fallback to generic English if selected language decode fails.
-      try:
-        return recognizer.recognize_google(audio_data, language="en-US")
-      except sr.UnknownValueError:
-        return ""
+    # Fallback to generic English if selected language decode fails.
+    try:
+      return recognizer.recognize_google(audio_data, language="en-US")
+    except sr.UnknownValueError:
+      return ""
     except sr.RequestError as exc:
         raise RuntimeError(f"Speech recognition service error: {exc}") from exc
 
@@ -402,41 +433,48 @@ input_mode = st.radio(
 )
 
 if input_mode == "Speech":
-  stt_language_label = st.selectbox(
-      "Speech recognition language",
-      options=list(STT_LANGUAGE_OPTIONS.keys()),
-      index=0,
-      key="stt_language_label",
-  )
-  stt_language_code = STT_LANGUAGE_OPTIONS[stt_language_label]
-  st.caption("Record and say both players, for example: Virat Kohli versus Rohit Sharma")
-  speech_audio = st.audio_input("Speak player names")
-  speech_apply = st.button("Use Speech Input")
+    stt_language_label = st.selectbox(
+        "Speech recognition language",
+        options=list(STT_LANGUAGE_OPTIONS.keys()),
+        index=0,
+        key="stt_language_label",
+    )
+    stt_google_code = STT_LANGUAGE_OPTIONS[stt_language_label]["google"]
+    stt_groq_code = STT_LANGUAGE_OPTIONS[stt_language_label]["groq"]
+    st.caption("Record and say both players, for example: Virat Kohli versus Rohit Sharma")
+    speech_audio = st.audio_input("Speak player names")
+    uploaded_audio = st.file_uploader(
+        "Or upload audio (wav/mp3/m4a/ogg/webm)",
+        type=["wav", "mp3", "m4a", "ogg", "webm"],
+        key="stt_upload",
+    )
+    speech_apply = st.button("Use Speech Input")
 
-  if speech_apply:
-    if speech_audio is None:
-      st.warning("Please record your voice first.")
-    else:
-      with st.spinner("Transcribing speech..."):
-        try:
-          transcript = transcribe_speech(speech_audio, stt_language_code)
-        except RuntimeError as exc:
-          st.error(str(exc))
-          transcript = ""
-
-      if transcript:
-        st.success(f"Heard: {transcript}")
-        spoken_p1, spoken_p2 = extract_players_from_text(transcript)
-        if not (spoken_p1 and spoken_p2):
-          spoken_p1, spoken_p2 = extract_players_from_aliases(transcript)
-        if spoken_p1 and spoken_p2:
-          st.session_state.pending_player1 = resolve_player_alias(spoken_p1)
-          st.session_state.pending_player2 = resolve_player_alias(spoken_p2)
-          st.rerun()
+    if speech_apply:
+        audio_source = speech_audio if speech_audio is not None else uploaded_audio
+        if audio_source is None:
+            st.warning("Please record or upload audio first.")
         else:
-          st.warning("Could not detect two player names. Try saying: Player one versus player two.")
-      else:
-        st.warning("Could not understand audio. Please try again clearly.")
+            with st.spinner("Transcribing speech..."):
+                try:
+                    transcript = transcribe_speech(audio_source, stt_google_code, stt_groq_code)
+                except RuntimeError as exc:
+                    st.error(str(exc))
+                    transcript = ""
+
+            if transcript:
+                st.success(f"Heard: {transcript}")
+                spoken_p1, spoken_p2 = extract_players_from_text(transcript)
+                if not (spoken_p1 and spoken_p2):
+                    spoken_p1, spoken_p2 = extract_players_from_aliases(transcript)
+                if spoken_p1 and spoken_p2:
+                    st.session_state.pending_player1 = resolve_player_alias(spoken_p1)
+                    st.session_state.pending_player2 = resolve_player_alias(spoken_p2)
+                    st.rerun()
+                else:
+                    st.warning("Could not detect two player names. Try saying: Virat Kohli versus Rohit Sharma.")
+            else:
+                st.warning("Could not understand audio. Try a clearer recording or upload audio file.")
 
 language_label = st.selectbox(
   "Commentary language",
