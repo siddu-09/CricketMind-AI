@@ -1,6 +1,7 @@
 from io import BytesIO
 import os
 import re
+from urllib.parse import quote
 
 from gtts import gTTS
 import matplotlib.pyplot as plt
@@ -248,10 +249,21 @@ def normalize_pair(values1, values2):
     )
 
 
-def player_block(title, stats, format_used):
+def player_block(title, stats, format_used, photo_url=None):
+    photo_html = ""
+    if photo_url:
+        photo_html = (
+            f'<div style="display:flex;justify-content:center;margin-bottom:10px;">'
+            f'<img src="{photo_url}" alt="{title}" '
+            'style="width:110px;height:110px;object-fit:cover;border-radius:50%;'
+            'border:2px solid #d4dce7;box-shadow:0 6px 14px rgba(15,23,42,0.14);" />'
+            '</div>'
+        )
+
     st.markdown(f"### {title}")
     st.markdown(
         f"""
+        {photo_html}
         <div class="metric-card">
           <div class="metric-title">Runs</div>
           <div class="metric-value">{stats.get('runs', 'N/A')}</div>
@@ -267,6 +279,58 @@ def player_block(title, stats, format_used):
         <span class="tag">Stats Basis: {format_used.upper()}</span>
         """,
         unsafe_allow_html=True,
+    )
+
+
+@st.cache_data(show_spinner=False, ttl=86400)
+def fetch_player_photo_url(player_name):
+    name = str(player_name or "").strip()
+    if not name:
+        return ""
+
+    try:
+        summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(name)}"
+        summary_resp = requests.get(summary_url, timeout=8)
+        if summary_resp.status_code == 200:
+            summary_data = summary_resp.json()
+            thumb = (summary_data.get("thumbnail") or {}).get("source")
+            if thumb:
+                return thumb
+    except requests.RequestException:
+        pass
+
+    try:
+        search_resp = requests.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={
+                "action": "query",
+                "list": "search",
+                "srsearch": f"{name} cricketer",
+                "format": "json",
+                "utf8": 1,
+            },
+            timeout=8,
+        )
+        if search_resp.status_code == 200:
+            search_data = search_resp.json()
+            results = (((search_data.get("query") or {}).get("search")) or [])
+            if results:
+                title = results[0].get("title")
+                if title:
+                    summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title)}"
+                    summary_resp = requests.get(summary_url, timeout=8)
+                    if summary_resp.status_code == 200:
+                        summary_data = summary_resp.json()
+                        thumb = (summary_data.get("thumbnail") or {}).get("source")
+                        if thumb:
+                            return thumb
+    except requests.RequestException:
+        pass
+
+    # Fallback avatar so UI always has a player image slot.
+    return (
+        "https://ui-avatars.com/api/?"
+        f"name={quote(name)}&size=256&background=e2e8f0&color=0f172a&bold=true"
     )
 
 
@@ -466,13 +530,15 @@ if compare_clicked:
       k1, k2 = keys[0], keys[1]
       stats1, stats2 = analysis[k1], analysis[k2]
       formats = result.get("format_used", {})
+      photo1 = fetch_player_photo_url(player1_resolved)
+      photo2 = fetch_player_photo_url(player2_resolved)
 
       st.write("")
       c1, c2 = st.columns(2)
       with c1:
-        player_block(player1_resolved.title(), stats1, formats.get("player1", "unknown"))
+        player_block(player1_resolved.title(), stats1, formats.get("player1", "unknown"), photo1)
       with c2:
-        player_block(player2_resolved.title(), stats2, formats.get("player2", "unknown"))
+        player_block(player2_resolved.title(), stats2, formats.get("player2", "unknown"), photo2)
 
       st.subheader("Performance Comparison (Bar Chart)")
       draw_bar_comparison(player1_resolved.title(), player2_resolved.title(), stats1, stats2)
