@@ -14,6 +14,22 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 CRICAPI_KEY = os.getenv("CRICAPI_KEY")
 CRICAPI_BASE = "https://api.cricapi.com/v1"
 
+
+def word_count(text):
+    return len([w for w in str(text or "").strip().split() if w])
+
+
+def build_minimum_commentary(player1, player2, p1_data, p2_data):
+    return (
+        f"What a fascinating comparison between {player1} and {player2}. "
+        f"{player1} currently has {p1_data.get('runs', 'N/A')} runs, an average of {p1_data.get('average', 'N/A')}, "
+        f"and a strike rate of {p1_data.get('strike_rate', 'N/A')}. "
+        f"On the other side, {player2} brings {p2_data.get('runs', 'N/A')} runs, an average of {p2_data.get('average', 'N/A')}, "
+        f"and a strike rate of {p2_data.get('strike_rate', 'N/A')}. "
+        "Both players show strong batting quality in this format, and the difference comes down to consistency, scoring pace, "
+        "and match impact. This is a close contest with high quality on display from both stars."
+    )
+
 def get_player_stats(player_name):
     """
     Fetch player stats from CricAPI by player name.
@@ -92,7 +108,16 @@ def get_player_stats(player_name):
         return None
 
 
-def cricket_analyst(player1, player2):
+def cricket_analyst(player1, player2, language="en"):
+    supported_languages = {
+        "en": "English",
+        "hi": "Hindi",
+        "kn": "Kannada",
+    }
+    language_code = (language or "en").strip().lower()
+    if language_code not in supported_languages:
+        language_code = "en"
+
     # Fetch player stats from CricAPI
     p1_data = get_player_stats(player1)
     p2_data = get_player_stats(player2)
@@ -146,6 +171,8 @@ FORMAT:
 IMPORTANT:
 - Prediction must be one player name
 - Confidence must be percentage (0–100%)
+- Keep "commentary" in {supported_languages[language_code]}
+- "commentary" must be at least 50 words
 
 Compare these two players:
 {player1} vs {player2}
@@ -192,6 +219,10 @@ Compare these two players:
             "player1": p1_data.get("format_used", "unknown"),
             "player2": p2_data.get("format_used", "unknown"),
         }
+
+        commentary = str(parsed_output.get("commentary", "")).strip()
+        if word_count(commentary) < 50:
+            parsed_output["commentary"] = build_minimum_commentary(player1, player2, p1_data, p2_data)
 
         return parsed_output
 
