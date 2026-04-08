@@ -275,25 +275,25 @@ def extract_players_from_text(text):
     return None, None
 
 
-  def extract_players_from_aliases(text):
+def extract_players_from_aliases(text):
     normalized = re.sub(r"[^a-z0-9\s]", " ", str(text or "").lower())
     normalized = re.sub(r"\s+", " ", normalized).strip()
     if not normalized:
-      return None, None
+        return None, None
 
     tokens = normalized.split()
     matched_players = []
 
     for start in range(len(tokens)):
-      for end in range(start + 1, len(tokens) + 1):
-        phrase = " ".join(tokens[start:end])
-        if phrase in COMMON_PLAYER_ALIASES:
-          resolved = COMMON_PLAYER_ALIASES[phrase]
-          if resolved not in matched_players:
-            matched_players.append(resolved)
+        for end in range(start + 1, len(tokens) + 1):
+            phrase = " ".join(tokens[start:end])
+            if phrase in COMMON_PLAYER_ALIASES:
+                resolved = COMMON_PLAYER_ALIASES[phrase]
+                if resolved not in matched_players:
+                    matched_players.append(resolved)
 
     if len(matched_players) >= 2:
-      return matched_players[0], matched_players[1]
+        return matched_players[0], matched_players[1]
 
     return None, None
 
