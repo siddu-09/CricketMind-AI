@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import requests
 import streamlit as st
+from stt import transcribe_wav_bytes, extract_players_from_transcript
 
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000/analyze")
@@ -327,11 +328,40 @@ if "player1" not in st.session_state:
 if "player2" not in st.session_state:
     st.session_state.player2 = "Rohit Sharma"
 
+# Apply voice-detected players before text inputs are instantiated.
+if "pending_player1" in st.session_state and "pending_player2" in st.session_state:
+  st.session_state.player1 = st.session_state.pop("pending_player1")
+  st.session_state.player2 = st.session_state.pop("pending_player2")
+
 input_col1, input_col2 = st.columns(2)
 with input_col1:
     player1 = st.text_input("Player 1", key="player1", placeholder="e.g. Virat Kohli")
 with input_col2:
     player2 = st.text_input("Player 2", key="player2", placeholder="e.g. Rohit Sharma")
+
+if hasattr(st, "audio_input"):
+  st.markdown("### Voice Input")
+  st.caption("Please say two player names.")
+  voice_clip = st.audio_input("Record your voice")
+
+  if st.button("Use Voice Input"):
+    if voice_clip is None:
+      st.warning("Please record your voice first.")
+    else:
+      with st.spinner("Processing voice input..."):
+        transcript, stt_error = transcribe_wav_bytes(voice_clip.getvalue(), language="en")
+
+      if stt_error:
+        st.error(stt_error)
+      else:
+        st.caption(f"Transcript: {transcript}")
+        p1_voice, p2_voice = extract_players_from_transcript(transcript)
+        if not p1_voice or not p2_voice:
+          st.warning("Could not detect two player names. Try saying full names clearly.")
+        else:
+          st.session_state.pending_player1 = p1_voice
+          st.session_state.pending_player2 = p2_voice
+          st.rerun()
 
 language_label = st.selectbox(
   "Commentary language",
@@ -398,13 +428,6 @@ if compare_clicked:
       st.subheader(f"Commentary ({language_label})")
       st.info(commentary_text)
 
-      try:
-        audio_bytes = generate_tts_audio(commentary_text, selected_language)
-        if audio_bytes:
-          st.audio(audio_bytes, format="audio/mp3", autoplay=True)
-      except Exception as exc:
-        st.warning(f"Could not generate commentary audio: {exc}")
-
       st.subheader("Verdict")
       st.success(result.get("verdict", "No verdict returned."))
 
@@ -415,3 +438,11 @@ if compare_clicked:
         st.metric("Predicted Winner", winner)
       with m2:
         st.metric("Confidence", f"{confidence}%")
+
+      try:
+        st.caption("Generating audio commentary...")
+        audio_bytes = generate_tts_audio(commentary_text, selected_language)
+        if audio_bytes:
+          st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+      except Exception as exc:
+        st.warning(f"Could not generate commentary audio: {exc}")
