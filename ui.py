@@ -227,23 +227,39 @@ def player_block(title, stats, format_used):
 
 
 def draw_bar_comparison(name1, name2, stats1, stats2):
-  labels = ["Runs", "Average", "Strike Rate"]
-  values1 = [to_float(stats1.get("runs")), to_float(stats1.get("average")), to_float(stats1.get("strike_rate"))]
-  values2 = [to_float(stats2.get("runs")), to_float(stats2.get("average")), to_float(stats2.get("strike_rate"))]
+  runs1 = to_float(stats1.get("runs"))
+  runs2 = to_float(stats2.get("runs"))
+  avg1 = to_float(stats1.get("average"))
+  avg2 = to_float(stats2.get("average"))
+  sr1 = to_float(stats1.get("strike_rate"))
+  sr2 = to_float(stats2.get("strike_rate"))
 
-  x = np.arange(len(labels))
+  fig, (ax_runs, ax_other) = plt.subplots(1, 2, figsize=(10.2, 4.2), gridspec_kw={"width_ratios": [1, 1.5]})
+
+  # Runs on its own axis so high values do not flatten Avg/SR bars.
+  run_x = np.arange(1)
   width = 0.34
+  ax_runs.set_facecolor("#fffdf7")
+  ax_runs.bar(run_x - width / 2, [runs1], width, label=name1, color="#ff7a00", alpha=0.9)
+  ax_runs.bar(run_x + width / 2, [runs2], width, label=name2, color="#1b4332", alpha=0.9)
+  ax_runs.set_xticks(run_x)
+  ax_runs.set_xticklabels(["Runs"])
+  ax_runs.set_ylabel("Runs")
+  ax_runs.grid(axis="y", alpha=0.25)
 
-  fig, ax = plt.subplots(figsize=(7.2, 4.2))
-  ax.set_facecolor("#fffdf7")
-  ax.bar(x - width / 2, values1, width, label=name1, color="#ff7a00", alpha=0.9)
-  ax.bar(x + width / 2, values2, width, label=name2, color="#1b4332", alpha=0.9)
+  metric_labels = ["Average", "Strike Rate"]
+  values1 = [avg1, sr1]
+  values2 = [avg2, sr2]
+  metric_x = np.arange(len(metric_labels))
 
-  ax.set_xticks(x)
-  ax.set_xticklabels(labels)
-  ax.grid(axis="y", alpha=0.25)
-  ax.legend(loc="upper right")
-  ax.set_ylabel("Value")
+  ax_other.set_facecolor("#fffdf7")
+  ax_other.bar(metric_x - width / 2, values1, width, label=name1, color="#ff7a00", alpha=0.9)
+  ax_other.bar(metric_x + width / 2, values2, width, label=name2, color="#1b4332", alpha=0.9)
+  ax_other.set_xticks(metric_x)
+  ax_other.set_xticklabels(metric_labels)
+  ax_other.set_ylabel("Value")
+  ax_other.grid(axis="y", alpha=0.25)
+  ax_other.legend(loc="upper right")
 
   st.pyplot(fig, use_container_width=True)
 
