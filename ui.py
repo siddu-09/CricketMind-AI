@@ -52,26 +52,32 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500;600&display=swap');
 
 :root {
-  --ink: #111827;
-  --surface: #f4f6f9;
+  --ink: #0f172a;
+  --muted: #475569;
+  --surface: #eef2f6;
   --panel: #ffffff;
-  --accent: #cc1f2f;
-  --border: #d6dbe3;
-  --muted: #4b5563;
+  --line: #d4dce7;
+  --brand: #6b4f1d;
+  --brand-2: #8a6b2f;
 }
 
 html, body, [class*="css"] {
-  font-family: 'Source Sans 3', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 .stApp {
-  background: var(--surface);
+  background: linear-gradient(180deg, #f3f6fb 0%, #ecf1f7 100%);
 }
 
-/* Global readability on light theme */
+section.main > div.block-container {
+  max-width: 1120px;
+  padding-top: 2rem;
+  padding-bottom: 2.5rem;
+}
+
 .stApp,
 .stApp p,
 .stApp span,
@@ -86,35 +92,39 @@ div[data-testid="stMarkdownContainer"] {
 }
 
 h1, h2, h3 {
-  font-family: 'Barlow Condensed', sans-serif;
-  letter-spacing: 0.01em;
   color: var(--ink);
-  text-transform: uppercase;
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.4rem;
 }
 
 .hero {
-  background: #0f172a;
-  border: 1px solid #1f2937;
-  border-radius: 10px;
-  color: #ffffff;
-  padding: 18px 20px;
-  margin-bottom: 12px;
+  background: linear-gradient(120deg, #f5faf8 0%, #edf5f2 100%);
+  border: 1px solid #dacba9;
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 16px;
+  box-shadow: 0 6px 16px rgba(107, 79, 29, 0.10);
+}
+
+.hero * {
+  color: #2f2308 !important;
+}
+
+.hero h1 {
+  font-size: 2.4rem;
+  font-weight: 700;
+  margin: 0 0 0.3rem 0;
 }
 
 .hero p {
-  margin-bottom: 0;
-  opacity: 0.92;
-}
-
-.hero h1,
-.hero p {
-  color: #ffffff !important;
+  margin: 0;
+  opacity: 0.95;
 }
 
 .metric-card {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 12px 14px;
   margin: 8px 0;
@@ -122,69 +132,96 @@ h1, h2, h3 {
 
 .metric-title {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
 }
 
 .metric-value {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Rajdhani', sans-serif;
   color: var(--ink);
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: 700;
 }
 
 .tag {
   display: inline-block;
-  border-radius: 6px;
-  padding: 4px 10px;
-  background: #eef2f7;
-  color: #1f2937;
-  border: 1px solid var(--border);
-  font-size: 0.78rem;
   margin-top: 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.77rem;
 }
 
-div[data-testid="stMetricValue"] {
-  color: var(--ink);
+div[data-baseweb="input"] input,
+div[data-baseweb="select"] > div {
+  background: #ffffff !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 8px !important;
+  color: #0f172a !important;
 }
 
-div[data-testid="stMetricLabel"] {
-  color: var(--muted) !important;
-}
-
-/* Form controls */
 div[data-baseweb="input"] input {
-  color: var(--ink) !important;
-  background-color: #ffffff !important;
-  border: 1px solid var(--border) !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+div[data-baseweb="select"] span,
+div[data-baseweb="select"] div,
+div[data-baseweb="select"] svg {
+  color: #0f172a !important;
+  fill: #0f172a !important;
+}
+
+div[data-testid="stAudioInput"] {
+  background: #ffffff !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 8px !important;
+  padding: 6px 8px !important;
+}
+
+div[data-testid="stAudioInput"] * {
+  color: #0f172a !important;
 }
 
 div[data-baseweb="input"] input::placeholder {
-  color: #6b7280 !important;
+  color: #94a3b8 !important;
   opacity: 1 !important;
 }
 
-/* Alert readability */
-div[data-testid="stAlert"] p,
-div[data-testid="stAlert"] span {
-  color: #111827 !important;
+div[data-testid="stSelectbox"] {
+  max-width: 280px;
 }
 
 .stButton > button {
-  width: 100%;
-  height: 2.8rem;
+  width: auto;
+  min-width: 168px;
+  height: 2.75rem;
   border-radius: 8px;
-  border: 1px solid var(--accent);
+  border: 1px solid #6b4f1d;
+  background: var(--brand);
   color: #ffffff;
-  background: var(--accent);
+  font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  font-family: 'Barlow Condensed', sans-serif;
   letter-spacing: 0.02em;
+  padding: 0 18px;
 }
 
 .stButton > button:hover {
-  border-color: #a51926;
-  background: #a51926;
+  background: #7c5d24;
+  border-color: #7c5d24;
   color: #ffffff;
+}
+
+div[data-testid="stMetric"] {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+div[data-testid="stAlert"] {
+  border-radius: 10px;
 }
 
 #MainMenu, footer, header {
@@ -246,9 +283,9 @@ def draw_bar_comparison(name1, name2, stats1, stats2):
   # Runs on its own axis so high values do not flatten Avg/SR bars.
   run_x = np.arange(1)
   width = 0.34
-  ax_runs.set_facecolor("#fffdf7")
-  ax_runs.bar(run_x - width / 2, [runs1], width, label=name1, color="#cc1f2f", alpha=0.9)
-  ax_runs.bar(run_x + width / 2, [runs2], width, label=name2, color="#1f2937", alpha=0.9)
+  ax_runs.set_facecolor("#ffffff")
+  ax_runs.bar(run_x - width / 2, [runs1], width, label=name1, color="#6b4f1d", alpha=0.9)
+  ax_runs.bar(run_x + width / 2, [runs2], width, label=name2, color="#7a7d86", alpha=0.9)
   ax_runs.set_xticks(run_x)
   ax_runs.set_xticklabels(["Runs"])
   ax_runs.set_ylabel("Runs")
@@ -259,9 +296,9 @@ def draw_bar_comparison(name1, name2, stats1, stats2):
   values2 = [avg2, sr2]
   metric_x = np.arange(len(metric_labels))
 
-  ax_other.set_facecolor("#fffdf7")
-  ax_other.bar(metric_x - width / 2, values1, width, label=name1, color="#cc1f2f", alpha=0.9)
-  ax_other.bar(metric_x + width / 2, values2, width, label=name2, color="#1f2937", alpha=0.9)
+  ax_other.set_facecolor("#ffffff")
+  ax_other.bar(metric_x - width / 2, values1, width, label=name1, color="#6b4f1d", alpha=0.9)
+  ax_other.bar(metric_x + width / 2, values2, width, label=name2, color="#7a7d86", alpha=0.9)
   ax_other.set_xticks(metric_x)
   ax_other.set_xticklabels(metric_labels)
   ax_other.set_ylabel("Value")
@@ -369,14 +406,18 @@ if hasattr(st, "audio_input"):
           st.session_state.pending_player2 = p2_voice
           st.rerun()
 
-language_label = st.selectbox(
-  "Commentary language",
-  options=list(LANGUAGE_OPTIONS.keys()),
-  index=0,
-)
-selected_language = LANGUAGE_OPTIONS[language_label]
+controls_col1, controls_col2, _ = st.columns([1.15, 0.8, 2.05])
+with controls_col1:
+  language_label = st.selectbox(
+    "Commentary language",
+    options=list(LANGUAGE_OPTIONS.keys()),
+    index=0,
+  )
+with controls_col2:
+  st.write("")
+  compare_clicked = st.button("Compare Players", type="primary")
 
-compare_clicked = st.button("Compare Players", type="primary")
+selected_language = LANGUAGE_OPTIONS[language_label]
 
 if compare_clicked:
   player1_resolved = resolve_player_alias(player1)
