@@ -14,24 +14,53 @@ _CLIENT = None
 COMMON_PLAYER_ALIASES = {
     "kohli": "Virat Kohli",
     "virat": "Virat Kohli",
+    "virt": "Virat Kohli",
+    "veerat": "Virat Kohli",
+    "verat": "Virat Kohli",
+    "virat koli": "Virat Kohli",
+    "virat kohlee": "Virat Kohli",
+    "virat kohli": "Virat Kohli",
     "king": "Virat Kohli",
     "king kohli": "Virat Kohli",
     "chase master": "Virat Kohli",
     "sharma": "Rohit Sharma",
     "rohit": "Rohit Sharma",
+    "rohit sharma": "Rohit Sharma",
+    "rohit sharmaa": "Rohit Sharma",
+    "rohith": "Rohit Sharma",
+    "roit": "Rohit Sharma",
     "hitman": "Rohit Sharma",
     "the hitman": "Rohit Sharma",
     "dhoni": "MS Dhoni",
     "msd": "MS Dhoni",
+    "ms dhoni": "MS Dhoni",
+    "m s dhoni": "MS Dhoni",
+    "mahendra singh dhoni": "MS Dhoni",
+    "ms doni": "MS Dhoni",
+    "em es dhoni": "MS Dhoni",
     "thala": "MS Dhoni",
     "captain cool": "MS Dhoni",
     "rahul": "KL Rahul",
+    "kl rahul": "KL Rahul",
+    "k l rahul": "KL Rahul",
+    "kel rahul": "KL Rahul",
+    "kay el rahul": "KL Rahul",
     "hardik": "Hardik Pandya",
+    "hardik pandya": "Hardik Pandya",
     "bumrah": "Jasprit Bumrah",
+    "jasprit bumrah": "Jasprit Bumrah",
+    "jaspreet bumrah": "Jasprit Bumrah",
+    "bumra": "Jasprit Bumrah",
+    "bumraa": "Jasprit Bumrah",
     "boom": "Jasprit Bumrah",
     "boom boom": "Jasprit Bumrah",
     "siraj": "Mohammed Siraj",
+    "mohammed siraj": "Mohammed Siraj",
+    "mohammad siraj": "Mohammed Siraj",
+    "mohd siraj": "Mohammed Siraj",
     "sachin": "Sachin Tendulkar",
+    "sachin tendulkar": "Sachin Tendulkar",
+    "sachin tendoolkar": "Sachin Tendulkar",
     "master blaster": "Sachin Tendulkar",
 }
 
@@ -99,18 +128,30 @@ def _match_player_name(fragment):
         if alias in normalized:
             return COMMON_PLAYER_ALIASES[alias]
 
+    # Try fuzzy matching on the full phrase and its token-level chunks.
+    # This helps with short STT variants like "virt" for "virat".
+    tokens = normalized.split()
+    candidates = [normalized]
+    candidates.extend(tokens)
+    if len(tokens) > 1:
+        candidates.extend(" ".join(tokens[i : i + 2]) for i in range(len(tokens) - 1))
+
     best_alias = ""
     best_score = 0.0
-    for alias in COMMON_PLAYER_ALIASES:
-        score = SequenceMatcher(a=normalized, b=alias).ratio()
-        if score > best_score:
-            best_score = score
-            best_alias = alias
+    best_candidate_len = 0
+    for candidate in candidates:
+        for alias in COMMON_PLAYER_ALIASES:
+            score = SequenceMatcher(a=candidate, b=alias).ratio()
+            if score > best_score:
+                best_score = score
+                best_alias = alias
+                best_candidate_len = len(candidate)
 
-    if best_alias and best_score >= 0.78:
+    threshold = 0.70 if best_candidate_len <= 5 else 0.78
+    if best_alias and best_score >= threshold:
         return COMMON_PLAYER_ALIASES[best_alias]
 
-    return normalized.title()
+    return ""
 
 
 def extract_players_from_transcript(text):
@@ -118,7 +159,7 @@ def extract_players_from_transcript(text):
     if not normalized:
         return None, None
 
-    normalized = re.sub(r"\b(versus|vs|against|and|with|or)\b", " vs ", normalized)
+    normalized = re.sub(r"\b(vs\.?|v\/?s|versus|verses|against|and|with|or)\b", " vs ", normalized)
     normalized = re.sub(r"\s+", " ", normalized).strip()
 
     parts = [part.strip() for part in normalized.split(" vs ") if part.strip()]
