@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import time
 import requests
 from dotenv import load_dotenv
 from groq import Groq
@@ -34,6 +35,9 @@ COMMON_PLAYER_ALIASES = {
     "boom": "Jasprit Bumrah",
     "boom boom": "Jasprit Bumrah",
     "siraj": "Mohammed Siraj",
+    "rishab": "Rishabh Pant",
+    "rishab pant": "Rishabh Pant",
+    "rishabh": "Rishabh Pant",
     "sachin": "Sachin Tendulkar",
     "master blaster": "Sachin Tendulkar",
 }
@@ -43,6 +47,54 @@ SUPPORTED_LANGUAGES = {
     "hi": "Hindi",
     "kn": "Kannada",
 }
+
+CACHE_TTL_SECONDS = int(os.getenv("PLAYER_STATS_CACHE_TTL", str(12 * 60 * 60)))
+PLAYER_STATS_CACHE = {}
+PLAYER_ID_CACHE = {}
+API_BLOCKED_UNTIL = 0.0
+
+
+def _cache_key(player_name):
+    return str(player_name or "").strip().lower()
+
+
+def _read_cached_stats(player_name, allow_stale=False):
+    entry = PLAYER_STATS_CACHE.get(_cache_key(player_name))
+    if not entry:
+        return None
+    age = time.time() - float(entry.get("cached_at", 0.0))
+    if not allow_stale and age > CACHE_TTL_SECONDS:
+        return None
+    return dict(entry.get("data") or {})
+
+
+def _write_cached_stats(player_name, data):
+    if not player_name or not data:
+        return
+    PLAYER_STATS_CACHE[_cache_key(player_name)] = {
+        "cached_at": time.time(),
+        "data": dict(data),
+    }
+
+
+def _set_api_block_from_reason(reason):
+    global API_BLOCKED_UNTIL
+    text = str(reason or "").strip().lower()
+    if not text:
+        return
+
+    minutes_match = re.search(r"(\d+)\s*minute", text)
+    if minutes_match:
+        wait_seconds = int(minutes_match.group(1)) * 60
+        API_BLOCKED_UNTIL = max(API_BLOCKED_UNTIL, time.time() + wait_seconds)
+        return
+
+    if "hits today exceeded hits limit" in text:
+        API_BLOCKED_UNTIL = max(API_BLOCKED_UNTIL, time.time() + 60 * 60)
+
+
+def _is_temporarily_blocked():
+    return time.time() < API_BLOCKED_UNTIL
 
 
 def resolve_player_alias(name):
@@ -154,26 +206,51 @@ def get_player_stats(player_name):
     """
     if not CRICAPI_KEY:
         return None, "CRICAPI_KEY is missing"
+
+    cached = _read_cached_stats(player_name, allow_stale=False)
+    if cached:
+        return cached, None
+
+    if _is_temporarily_blocked():
+        stale = _read_cached_stats(player_name, allow_stale=True)
+        if stale:
+            return stale, None
+        wait_seconds = max(1, int(API_BLOCKED_UNTIL - time.time()))
+        wait_minutes = (wait_seconds + 59) // 60
+        return None, f"Blocked by CricAPI. Retry in about {wait_minutes} minute(s)."
+
     # Step 1: Search player
     search_url = f"{CRICAPI_BASE}/players"
     params = {"apikey": CRICAPI_KEY, "search": player_name}
+    cached_player_id = PLAYER_ID_CACHE.get(_cache_key(player_name))
+    player_id = cached_player_id
+    resolved_name = player_name
     try:
-        resp = requests.get(search_url, params=params, timeout=10)
-        data = resp.json()
-        if str(data.get("status", "")).lower() == "failure":
-            reason = str(data.get("reason") or "Player search failed").strip()
-            return None, reason
-        if not data.get("data"):
-            return None, f"No player search results for '{player_name}'"
-        players = data["data"]
+        if not player_id:
+            resp = requests.get(search_url, params=params, timeout=10)
+            data = resp.json()
+            if str(data.get("status", "")).lower() == "failure":
+                reason = str(data.get("reason") or "Player search failed").strip()
+                _set_api_block_from_reason(reason)
+                stale = _read_cached_stats(player_name, allow_stale=True)
+                if stale:
+                    return stale, None
+                return None, reason
+            if not data.get("data"):
+                stale = _read_cached_stats(player_name, allow_stale=True)
+                if stale:
+                    return stale, None
+                return None, f"No player search results for '{player_name}'"
+            players = data["data"]
 
-        # Prefer exact name match when available, else first search hit.
-        selected = next(
-            (p for p in players if str(p.get("name", "")).strip().lower() == player_name.strip().lower()),
-            players[0],
-        )
-        player_id = selected["id"]
-        resolved_name = selected.get("name", player_name)
+            # Prefer exact name match when available, else first search hit.
+            selected = next(
+                (p for p in players if str(p.get("name", "")).strip().lower() == player_name.strip().lower()),
+                players[0],
+            )
+            player_id = selected["id"]
+            resolved_name = selected.get("name", player_name)
+            PLAYER_ID_CACHE[_cache_key(player_name)] = player_id
     except Exception:
         return None, f"Failed to search player '{player_name}'"
     # Step 2: Get player details + stats
@@ -184,6 +261,10 @@ def get_player_stats(player_name):
         stats = resp.json()
         if stats.get("status") == "failure":
             reason = str(stats.get("reason") or "Player stats lookup failed").strip()
+            _set_api_block_from_reason(reason)
+            stale = _read_cached_stats(player_name, allow_stale=True)
+            if stale:
+                return stale, None
             return None, reason
 
         stat_rows = stats.get("data", {}).get("stats", [])
@@ -248,14 +329,17 @@ def get_player_stats(player_name):
 
         selected_format = "+".join([fmt.upper() for fmt in target_formats if fmt in batting_by_format])
 
-        return {
+        result = {
             "runs": format_metric(total_runs, 0),
             "average": format_metric(combined_avg),
             "strike_rate": format_metric(combined_sr),
             "format_used": selected_format,
             "player_name": resolved_name,
             "format_breakdown": format_breakdown,
-        }, None
+        }
+        _write_cached_stats(player_name, result)
+        _write_cached_stats(resolved_name, result)
+        return result, None
     except Exception:
         return None, f"Failed to fetch stats for '{player_name}'"
 

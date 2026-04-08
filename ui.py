@@ -37,6 +37,9 @@ COMMON_PLAYER_ALIASES = {
   "boom": "Jasprit Bumrah",
   "boom boom": "Jasprit Bumrah",
     "siraj": "Mohammed Siraj",
+    "rishab": "Rishabh Pant",
+    "rishab pant": "Rishabh Pant",
+    "rishabh": "Rishabh Pant",
     "sachin": "Sachin Tendulkar",
   "master blaster": "Sachin Tendulkar",
 }
