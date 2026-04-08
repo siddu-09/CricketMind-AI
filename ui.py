@@ -226,29 +226,26 @@ def player_block(title, stats, format_used):
     )
 
 
-def draw_radar(name1, name2, stats1, stats2):
-    labels = ["Runs", "Average", "Strike Rate"]
-    raw1 = [to_float(stats1.get("runs")), to_float(stats1.get("average")), to_float(stats1.get("strike_rate"))]
-    raw2 = [to_float(stats2.get("runs")), to_float(stats2.get("average")), to_float(stats2.get("strike_rate"))]
-    v1, v2 = normalize_pair(raw1, raw2)
+def draw_bar_comparison(name1, name2, stats1, stats2):
+  labels = ["Runs", "Average", "Strike Rate"]
+  values1 = [to_float(stats1.get("runs")), to_float(stats1.get("average")), to_float(stats1.get("strike_rate"))]
+  values2 = [to_float(stats2.get("runs")), to_float(stats2.get("average")), to_float(stats2.get("strike_rate"))]
 
-    v1 += v1[:1]
-    v2 += v2[:1]
-    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
-    angles += angles[:1]
+  x = np.arange(len(labels))
+  width = 0.34
 
-    fig, ax = plt.subplots(figsize=(4.2, 4.2), subplot_kw={"polar": True})
-    ax.set_facecolor("#fffdf7")
-    ax.plot(angles, v1, linewidth=2.2, label=name1, color="#ff7a00")
-    ax.fill(angles, v1, alpha=0.22, color="#ff7a00")
-    ax.plot(angles, v2, linewidth=2.2, label=name2, color="#1b4332")
-    ax.fill(angles, v2, alpha=0.22, color="#1b4332")
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(labels)
-    ax.set_yticklabels([])
-    ax.grid(alpha=0.25)
-    ax.legend(loc="upper right", bbox_to_anchor=(1.2, 1.1))
-    st.pyplot(fig, use_container_width=False)
+  fig, ax = plt.subplots(figsize=(7.2, 4.2))
+  ax.set_facecolor("#fffdf7")
+  ax.bar(x - width / 2, values1, width, label=name1, color="#ff7a00", alpha=0.9)
+  ax.bar(x + width / 2, values2, width, label=name2, color="#1b4332", alpha=0.9)
+
+  ax.set_xticks(x)
+  ax.set_xticklabels(labels)
+  ax.grid(axis="y", alpha=0.25)
+  ax.legend(loc="upper right")
+  ax.set_ylabel("Value")
+
+  st.pyplot(fig, use_container_width=True)
 
 
 def resolve_player_alias(name):
@@ -374,8 +371,8 @@ if compare_clicked:
       with c2:
         player_block(player2_resolved.title(), stats2, formats.get("player2", "unknown"))
 
-      st.subheader("Performance Radar")
-      draw_radar(player1_resolved.title(), player2_resolved.title(), stats1, stats2)
+      st.subheader("Performance Comparison (Bar Chart)")
+      draw_bar_comparison(player1_resolved.title(), player2_resolved.title(), stats1, stats2)
 
       st.subheader("Head-to-Head Insights")
       for item in result.get("comparison", []):
