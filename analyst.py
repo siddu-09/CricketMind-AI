@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import requests
 from dotenv import load_dotenv
 from groq import Groq
@@ -13,6 +14,49 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 # CricAPI config
 CRICAPI_KEY = os.getenv("CRICAPI_KEY")
 CRICAPI_BASE = "https://api.cricapi.com/v1"
+COMMON_PLAYER_ALIASES = {
+    "kohli": "Virat Kohli",
+    "virat": "Virat Kohli",
+    "king": "Virat Kohli",
+    "king kohli": "Virat Kohli",
+    "chase master": "Virat Kohli",
+    "sharma": "Rohit Sharma",
+    "rohit": "Rohit Sharma",
+    "hitman": "Rohit Sharma",
+    "the hitman": "Rohit Sharma",
+    "dhoni": "MS Dhoni",
+    "msd": "MS Dhoni",
+    "thala": "MS Dhoni",
+    "captain cool": "MS Dhoni",
+    "rahul": "KL Rahul",
+    "hardik": "Hardik Pandya",
+    "bumrah": "Jasprit Bumrah",
+    "boom": "Jasprit Bumrah",
+    "boom boom": "Jasprit Bumrah",
+    "siraj": "Mohammed Siraj",
+    "sachin": "Sachin Tendulkar",
+    "master blaster": "Sachin Tendulkar",
+}
+
+
+def resolve_player_alias(name):
+    clean_name = str(name or "").strip().lower()
+    normalized = re.sub(r"[^a-z0-9\s]", " ", clean_name)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    if normalized in COMMON_PLAYER_ALIASES:
+        return COMMON_PLAYER_ALIASES[normalized]
+    if clean_name in COMMON_PLAYER_ALIASES:
+        return COMMON_PLAYER_ALIASES[clean_name]
+
+    tokens = normalized.split()
+    for i in range(len(tokens)):
+        for j in range(i + 1, len(tokens) + 1):
+            phrase = " ".join(tokens[i:j])
+            if phrase in COMMON_PLAYER_ALIASES:
+                return COMMON_PLAYER_ALIASES[phrase]
+
+    return str(name or "").strip().title()
 
 
 def word_count(text):
@@ -117,6 +161,9 @@ def cricket_analyst(player1, player2, language="en"):
     language_code = (language or "en").strip().lower()
     if language_code not in supported_languages:
         language_code = "en"
+
+    player1 = resolve_player_alias(player1)
+    player2 = resolve_player_alias(player2)
 
     # Fetch player stats from CricAPI
     p1_data = get_player_stats(player1)
