@@ -375,6 +375,7 @@ def draw_bar_comparison(name1, name2, stats1, stats2):
   ax_other.legend(loc="upper right")
 
   st.pyplot(fig, use_container_width=True)
+  plt.close(fig)
 
 
 def resolve_player_alias(name):
@@ -453,12 +454,6 @@ if "pending_player1" in st.session_state and "pending_player2" in st.session_sta
   st.session_state.player1 = st.session_state.pop("pending_player1")
   st.session_state.player2 = st.session_state.pop("pending_player2")
 
-input_col1, input_col2 = st.columns(2)
-with input_col1:
-    player1 = st.text_input("Player 1", key="player1", placeholder="e.g. Virat Kohli")
-with input_col2:
-    player2 = st.text_input("Player 2", key="player2", placeholder="e.g. Rohit Sharma")
-
 if hasattr(st, "audio_input"):
   st.markdown("### Voice Input")
   st.caption("Please say two player names.")
@@ -493,16 +488,23 @@ if hasattr(st, "audio_input"):
           st.session_state.pending_player2 = p2_voice
           st.rerun()
 
-controls_col1, controls_col2, _ = st.columns([1.15, 0.8, 2.05])
-with controls_col1:
-  language_label = st.selectbox(
-    "Commentary language",
-    options=list(LANGUAGE_OPTIONS.keys()),
-    index=0,
-  )
-with controls_col2:
-  st.write("")
-  compare_clicked = st.button("Compare Players", type="primary")
+with st.form("compare_players_form"):
+  input_col1, input_col2 = st.columns(2)
+  with input_col1:
+      player1 = st.text_input("Player 1", key="player1", placeholder="e.g. Virat Kohli")
+  with input_col2:
+      player2 = st.text_input("Player 2", key="player2", placeholder="e.g. Rohit Sharma")
+
+  controls_col1, controls_col2, _ = st.columns([1.15, 0.8, 2.05])
+  with controls_col1:
+    language_label = st.selectbox(
+      "Commentary language",
+      options=list(LANGUAGE_OPTIONS.keys()),
+      index=list(LANGUAGE_OPTIONS.keys()).index(st.session_state.last_language_label),
+    )
+  with controls_col2:
+    st.write("")
+    compare_clicked = st.form_submit_button("Compare Players", type="primary")
 
 selected_language = LANGUAGE_OPTIONS[language_label]
 
@@ -554,50 +556,51 @@ if st.session_state.last_error:
   st.error(st.session_state.last_error)
 
 if st.session_state.last_result:
-      result = st.session_state.last_result
-      player1_resolved, player2_resolved = st.session_state.last_compared_players
-      language_label = st.session_state.last_language_label
-      analysis = result.get("analysis", {})
-      keys = list(analysis.keys())
-      k1, k2 = keys[0], keys[1]
-      stats1, stats2 = analysis[k1], analysis[k2]
-      formats = result.get("format_used", {})
-      photo1 = fetch_player_photo_url(player1_resolved)
-      photo2 = fetch_player_photo_url(player2_resolved)
+  result = st.session_state.last_result
+  player1_resolved, player2_resolved = st.session_state.last_compared_players
+  language_label = st.session_state.last_language_label
+  selected_language = LANGUAGE_OPTIONS.get(language_label, "en")
+  analysis = result.get("analysis", {})
+  keys = list(analysis.keys())
+  k1, k2 = keys[0], keys[1]
+  stats1, stats2 = analysis[k1], analysis[k2]
+  formats = result.get("format_used", {})
+  photo1 = fetch_player_photo_url(player1_resolved)
+  photo2 = fetch_player_photo_url(player2_resolved)
 
-      st.write("")
-      c1, c2 = st.columns(2)
-      with c1:
-        player_block(player1_resolved.title(), stats1, formats.get("player1", "unknown"), photo1)
-      with c2:
-        player_block(player2_resolved.title(), stats2, formats.get("player2", "unknown"), photo2)
+  st.write("")
+  c1, c2 = st.columns(2)
+  with c1:
+    player_block(player1_resolved.title(), stats1, formats.get("player1", "unknown"), photo1)
+  with c2:
+    player_block(player2_resolved.title(), stats2, formats.get("player2", "unknown"), photo2)
 
-      st.subheader("Performance Comparison (Bar Chart)")
-      draw_bar_comparison(player1_resolved.title(), player2_resolved.title(), stats1, stats2)
+  st.subheader("Performance Comparison (Bar Chart)")
+  draw_bar_comparison(player1_resolved.title(), player2_resolved.title(), stats1, stats2)
 
-      st.subheader("Head-to-Head Insights")
-      for item in result.get("comparison", []):
-        st.write(f"- {item}")
+  st.subheader("Head-to-Head Insights")
+  for item in result.get("comparison", []):
+    st.write(f"- {item}")
 
-      commentary_text = result.get("commentary", "No commentary returned.")
-      st.subheader(f"Commentary ({language_label})")
-      st.info(commentary_text)
+  commentary_text = result.get("commentary", "No commentary returned.")
+  st.subheader(f"Commentary ({language_label})")
+  st.info(commentary_text)
 
-      st.subheader("Verdict")
-      st.success(result.get("verdict", "No verdict returned."))
+  st.subheader("Verdict")
+  st.success(result.get("verdict", "No verdict returned."))
 
-      winner = result.get("prediction", "Unknown")
-      confidence = result.get("confidence", 0)
-      m1, m2 = st.columns(2)
-      with m1:
-        st.metric("Predicted Winner", winner)
-      with m2:
-        st.metric("Confidence", f"{confidence}%")
+  winner = result.get("prediction", "Unknown")
+  confidence = result.get("confidence", 0)
+  m1, m2 = st.columns(2)
+  with m1:
+    st.metric("Predicted Winner", winner)
+  with m2:
+    st.metric("Confidence", f"{confidence}%")
 
-      try:
-        st.caption("Generating audio commentary...")
-        audio_bytes = generate_tts_audio(commentary_text, selected_language)
-        if audio_bytes:
-          st.audio(audio_bytes, format="audio/mp3")
-      except Exception as exc:
-        st.warning(f"Could not generate commentary audio: {exc}")
+  try:
+    st.caption("Generating audio commentary...")
+    audio_bytes = generate_tts_audio(commentary_text, selected_language)
+    if audio_bytes:
+      st.audio(audio_bytes, format="audio/mp3")
+  except Exception as exc:
+    st.warning(f"Could not generate commentary audio: {exc}")
