@@ -470,8 +470,16 @@ if hasattr(st, "audio_input"):
     if voice_clip is None:
       st.warning("Please record your voice first.")
     else:
+      st.caption(
+        f"Recorded audio: {getattr(voice_clip, 'name', 'unknown')} ({getattr(voice_clip, 'type', 'unknown')})"
+      )
       with st.spinner("Processing voice input..."):
-        transcript, stt_error = transcribe_wav_bytes(voice_clip.getvalue(), language="en")
+        transcript, stt_error = transcribe_wav_bytes(
+          voice_clip.getvalue(),
+          language="en",
+          filename=getattr(voice_clip, "name", ""),
+          mime_type=getattr(voice_clip, "type", ""),
+        )
 
       if stt_error:
         st.error(stt_error)
