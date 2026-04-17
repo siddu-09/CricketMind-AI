@@ -10,186 +10,118 @@ pinned: false
 
 # CricketMind AI
 
-## Live Demo
+CricketMind AI helps you compare two cricket players using live stats, AI analysis, and voice-assisted input.
 
-- Hugging Face Space: https://huggingface.co/spaces/siddu9/cricketmind-ai
+Live demo: https://huggingface.co/spaces/siddu9/cricketmind-ai
 
-CricketMind AI is a player-vs-player cricket comparison app that combines live stats, AI analysis, and spoken commentary.
+## What This App Does
 
-You can compare two cricketers using text input, view a stat-driven comparison dashboard, and listen to generated commentary in multiple languages.
+- Compare any two players with one click.
+- Show runs, average, strike rate, and a bar-chart comparison.
+- Generate AI commentary, verdict, and winner confidence.
+- Support voice input for player names.
+- Read out commentary with text-to-speech.
+- Support commentary in English, Hindi, and Kannada.
 
-## Project Description
+## Screenshots
 
-The project has two main parts:
+### 1) Home and Voice Input
 
-1. Backend API (FastAPI)
+![CricketMind AI Home](assets/screenshots/home-top.png)
 
-- Accepts two player names and selected commentary language.
-- Fetches player statistics from CricAPI.
-- Uses an LLM to generate structured analysis, comparison points, commentary, verdict, and prediction.
-- Ensures commentary is meaningful (minimum length handling).
-- Returns JSON response to the UI.
+### 2) Comparison Output
 
-2. Frontend UI (Streamlit)
+![CricketMind AI Comparison](assets/screenshots/after-compare.png)
 
-- Provides player input via text.
-- Supports nickname/tagline resolution (for example: "King", "Hitman", "Thala").
-- Sends requests to backend and renders cards, radar chart, insights, verdict, and confidence.
-- Generates and auto-plays text-to-speech commentary.
-- Supports commentary language selection: English, Hindi, Kannada.
+### 3) Stats and Chart Section
 
-## Models and AI Services Used
+![CricketMind AI Stats and Chart](assets/screenshots/stats-section.png)
 
-1. LLM for cricket analysis and commentary
+## How It Works
 
-- Provider: Groq
-- Model: llama-3.3-70b-versatile
-- Usage: Generates structured cricket comparison output in JSON format.
-
-2. Text-to-Speech (TTS)
-
-- Engine: Google Text-to-Speech (gTTS)
-- Usage: Converts generated AI commentary to MP3 audio for playback.
-
-3. Speech-to-Text (STT)
-
-- Engine: Groq Whisper (whisper-large-v3-turbo)
-- Usage: Transcribes spoken player names for accurate voice input and extraction.
-
-4. External Cricket Data Source
-
-- API: CricAPI
-- Usage: Fetches player profile and batting stats used as analysis input.
+1. You enter or speak two player names.
+2. The backend fetches player data from CricAPI.
+3. The LLM builds a structured analysis and commentary.
+4. The UI renders stats, charts, insights, and verdict.
+5. TTS generates playable audio commentary.
 
 ## Tech Stack
 
 - Python 3.13+
 - FastAPI
 - Streamlit
-- Groq Python SDK
-- requests
+- Groq SDK
+- gTTS
 - matplotlib
 - numpy
-- gTTS
+- requests
 - python-dotenv
 
-## Repository Structure
+## Project Structure
 
-- app.py: FastAPI server and analyze endpoint
-- analyst.py: Data fetch + LLM orchestration + response shaping
-- ui.py: Streamlit dashboard, TTS playback, visualizations
-- stt.py: Whisper STT transcription + robust player-name extraction helpers
-- voice.py: Standalone voice interaction script using Whisper STT
+- app.py: FastAPI app and analyze endpoint
+- analyst.py: data fetch and LLM orchestration
+- ui.py: Streamlit frontend and visualization
+- stt.py: speech-to-text and player extraction logic
+- voice.py: standalone voice interaction script
 - requirements.txt: Python dependencies
+- start.sh: starts backend and frontend in Docker runtime
+- Dockerfile: image build for deployment
 
-## Setup Instructions
+## Quick Start (Local)
 
-1. Clone and enter project
+1. Clone the repo and open it.
 
-```bash
-git clone <your-repo-url>
-cd cricketmind-source
-```
-
-2. Create virtual environment
+2. Create and activate virtual environment.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 ```
 
-3. Install dependencies
+3. Install dependencies.
 
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Configure environment variables
-   Create a .env file in project root:
+4. Create .env file in project root.
 
 ```env
 GROQ_API_KEY=your_groq_api_key
 CRICAPI_KEY=your_cricapi_key
 ```
 
-## Run the Project
-
-1. Start backend API
+5. Start backend API.
 
 ```bash
 uvicorn app:app --reload
 ```
 
-2. Start Streamlit UI (new terminal)
+6. Start Streamlit in a new terminal.
 
 ```bash
 streamlit run ui.py
 ```
 
-3. Open app
+7. Open the app.
 
-- Streamlit UI: http://localhost:8501
-- API health route: http://127.0.0.1:8000/
+- UI: http://localhost:8501
+- API health check: http://127.0.0.1:8000/
 
-## Current Features
+## Deployment (Hugging Face Spaces)
 
-- Compare two cricket players with live stats.
-- Radar chart for quick visual comparison.
-- AI-generated head-to-head insights.
-- AI commentary with minimum-length handling.
-- TTS playback in English, Hindi, Kannada.
-- Whisper-based voice input for player-name detection.
-- Nickname and tagline mapping (for example: King -> Virat Kohli, Hitman -> Rohit Sharma).
+This repo is configured for Docker Spaces.
+
+1. Create a new Hugging Face Space with Docker SDK.
+2. Add secrets in Space settings.
+   - GROQ_API_KEY
+   - CRICAPI_KEY
+3. Push this repo to your Space remote.
+4. Wait for the build to complete.
 
 ## Notes
 
-- TTS depends on Google services availability and internet connection.
-- STT depends on GROQ_API_KEY and internet connectivity for Whisper transcription.
-- Player matching quality depends on CricAPI search results.
-- Nickname mapping can be extended in code for additional players.
-
-## Deploy on Hugging Face Spaces
-
-This project is configured for Hugging Face Docker Spaces.
-
-### Files Used for Deployment
-
-- Dockerfile: Builds the app container
-- start.sh: Starts FastAPI backend (port 8000) + Streamlit UI (port 8501)
-- .dockerignore: Excludes local/secret files from Docker build context
-
-### Steps
-
-1. Create a new Space on Hugging Face
-
-- Space type: Docker
-- Visibility: your choice (public/private)
-
-2. Push this repository to the Space
-
-- Add Space remote and push your code, or upload all files via the Space UI.
-
-3. Add required Secrets in Space Settings
-
-- GROQ_API_KEY
-- CRICAPI_KEY
-
-4. Wait for build and startup
-
-- Hugging Face will build the Docker image using Dockerfile.
-- The app is served through Streamlit on port 8501.
-
-### Deploy Using Git (Example)
-
-```bash
-git init
-git add .
-git commit -m "Deploy CricketMind AI to Hugging Face Spaces"
-git remote add space https://huggingface.co/spaces/<username>/<space-name>
-git push --force space main
-```
-
-### Important Runtime Notes
-
-- Keep BACKEND_URL as default (http://127.0.0.1:8000/analyze) for Docker Space runtime.
-- If TTS audio generation is slow, retry after a few seconds.
+- Voice transcription quality depends on microphone quality and network stability.
+- STT requires valid Groq API credentials.
+- Player matching can be improved over time by extending aliases in stt.py.
