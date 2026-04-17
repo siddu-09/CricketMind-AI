@@ -488,23 +488,22 @@ if hasattr(st, "audio_input"):
           st.session_state.pending_player2 = p2_voice
           st.rerun()
 
-with st.form("compare_players_form"):
-  input_col1, input_col2 = st.columns(2)
-  with input_col1:
-      player1 = st.text_input("Player 1", key="player1", placeholder="e.g. Virat Kohli")
-  with input_col2:
-      player2 = st.text_input("Player 2", key="player2", placeholder="e.g. Rohit Sharma")
+input_col1, input_col2 = st.columns(2)
+with input_col1:
+    player1 = st.text_input("Player 1", key="player1", placeholder="e.g. Virat Kohli")
+with input_col2:
+    player2 = st.text_input("Player 2", key="player2", placeholder="e.g. Rohit Sharma")
 
-  controls_col1, controls_col2, _ = st.columns([1.15, 0.8, 2.05])
-  with controls_col1:
-    language_label = st.selectbox(
-      "Commentary language",
-      options=list(LANGUAGE_OPTIONS.keys()),
-      index=list(LANGUAGE_OPTIONS.keys()).index(st.session_state.last_language_label),
-    )
-  with controls_col2:
-    st.write("")
-    compare_clicked = st.form_submit_button("Compare Players", type="primary")
+controls_col1, controls_col2, _ = st.columns([1.15, 0.8, 2.05])
+with controls_col1:
+  language_label = st.selectbox(
+    "Commentary language",
+    options=list(LANGUAGE_OPTIONS.keys()),
+    index=list(LANGUAGE_OPTIONS.keys()).index(st.session_state.last_language_label),
+  )
+with controls_col2:
+  st.write("")
+  compare_clicked = st.button("Compare Players", type="primary")
 
 selected_language = LANGUAGE_OPTIONS[language_label]
 
