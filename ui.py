@@ -1,4 +1,5 @@
 from io import BytesIO
+import html
 import os
 import re
 from urllib.parse import quote
@@ -211,10 +212,115 @@ div[data-testid="stSelectbox"] {
   padding: 0 18px;
 }
 
+.stButton > button,
+.stButton > button * {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
 .stButton > button:hover {
   background: #7c5d24;
   border-color: #7c5d24;
   color: #ffffff;
+}
+
+.stButton > button:hover,
+.stButton > button:hover * {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+.result-banner {
+  background: linear-gradient(120deg, #f9fbff 0%, #eef4ff 100%);
+  border: 1px solid #cfd9ee;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 10px 0 14px 0;
+}
+
+.result-title {
+  color: #0f172a;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.result-subtitle {
+  margin-top: 3px;
+  color: #334155;
+  font-size: 0.93rem;
+}
+
+.section-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 10px 0;
+}
+
+.section-heading {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px 0;
+}
+
+.insight-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #1f2937;
+}
+
+.insight-list li {
+  margin: 4px 0;
+}
+
+.commentary-text {
+  color: #1f2937;
+  line-height: 1.5;
+}
+
+.verdict-text {
+  color: #14532d;
+  background: #ecfdf3;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.summary-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 10px 12px;
+}
+
+.summary-label {
+  color: #475569;
+  font-size: 0.8rem;
+}
+
+.summary-value {
+  color: #0f172a;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+@media (max-width: 840px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 div[data-testid="stMetric"] {
@@ -575,6 +681,16 @@ if st.session_state.last_result:
   photo1 = fetch_player_photo_url(player1_resolved)
   photo2 = fetch_player_photo_url(player2_resolved)
 
+  st.markdown(
+    f"""
+    <div class="result-banner">
+      <div class="result-title">Comparison Ready</div>
+      <div class="result-subtitle">{html.escape(player1_resolved.title())} vs {html.escape(player2_resolved.title())}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+  )
+
   st.write("")
   c1, c2 = st.columns(2)
   with c1:
@@ -585,24 +701,63 @@ if st.session_state.last_result:
   st.subheader("Performance Comparison (Bar Chart)")
   draw_bar_comparison(player1_resolved.title(), player2_resolved.title(), stats1, stats2)
 
-  st.subheader("Head-to-Head Insights")
-  for item in result.get("comparison", []):
-    st.write(f"- {item}")
+  insight_items = result.get("comparison", [])
+  safe_insights = "".join(f"<li>{html.escape(str(item))}</li>" for item in insight_items)
+  st.markdown(
+    f"""
+    <div class="section-card">
+      <div class="section-heading">Head-to-Head Insights</div>
+      {'<ul class="insight-list">' + safe_insights + '</ul>' if safe_insights else '<p class="commentary-text">No additional insights were returned.</p>'}
+    </div>
+    """,
+    unsafe_allow_html=True,
+  )
 
   commentary_text = result.get("commentary", "No commentary returned.")
-  st.subheader(f"Commentary ({language_label})")
-  st.info(commentary_text)
+  safe_commentary = html.escape(commentary_text)
+  st.markdown(
+    f"""
+    <div class="section-card">
+      <div class="section-heading">Commentary ({html.escape(language_label)})</div>
+      <div class="commentary-text">{safe_commentary}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+  )
 
-  st.subheader("Verdict")
-  st.success(result.get("verdict", "No verdict returned."))
+  verdict_text = result.get("verdict", "No verdict returned.")
+  safe_verdict = html.escape(str(verdict_text))
+  st.markdown(
+    f"""
+    <div class="section-card">
+      <div class="section-heading">Verdict</div>
+      <div class="verdict-text">{safe_verdict}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+  )
 
   winner = result.get("prediction", "Unknown")
   confidence = result.get("confidence", 0)
-  m1, m2 = st.columns(2)
-  with m1:
-    st.metric("Predicted Winner", winner)
-  with m2:
-    st.metric("Confidence", f"{confidence}%")
+  safe_winner = html.escape(str(winner))
+  safe_confidence = html.escape(str(confidence))
+  st.markdown(
+    f"""
+    <div class="section-card">
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Predicted Winner</div>
+          <div class="summary-value">{safe_winner}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Confidence</div>
+          <div class="summary-value">{safe_confidence}%</div>
+        </div>
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+  )
 
   try:
     st.caption("Generating audio commentary...")
