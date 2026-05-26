@@ -298,6 +298,55 @@ div[data-testid="stSelectbox"] {
   font-weight: 600;
 }
 
+/* ── Bowling mode metric cards ───────────────────────── */
+.metric-card-bowl {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 8px 0;
+}
+.metric-card-bowl .metric-title { color: #15803d; }
+.metric-card-bowl .metric-value { color: #14532d; }
+
+.mode-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  width: fit-content;
+  margin-top: 2px;
+}
+.mode-btn {
+  padding: 7px 18px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: none;
+  background: #f8fafc;
+  color: #475569;
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: 0.02em;
+}
+.mode-btn.active-bat  { background: #6b4f1d; color: #fff; }
+.mode-btn.active-bowl { background: #15803d; color: #fff; }
+
+.bowl-badge {
+  display: inline-block;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  padding: 2px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -546,6 +595,110 @@ def draw_radar_comparison(name1, name2, stats1, stats2, key=None):
     st.plotly_chart(fig, use_container_width=True, key=key)
 
 
+def draw_radar_comparison_bowling(name1, name2, stats1, stats2, key=None):
+    """Radar chart for bowling stats. Lower avg/economy = better, so we invert them."""
+    stats1 = stats1 or {}
+    stats2 = stats2 or {}
+
+    wkts1 = to_float(stats1.get("wickets"))
+    wkts2 = to_float(stats2.get("wickets"))
+    avg1  = to_float(stats1.get("bowling_average"))
+    avg2  = to_float(stats2.get("bowling_average"))
+    eco1  = to_float(stats1.get("economy"))
+    eco2  = to_float(stats2.get("economy"))
+    sr1   = to_float(stats1.get("bowling_sr"))
+    sr2   = to_float(stats2.get("bowling_sr"))
+
+    def normalise(v1, v2):
+        m = max(v1, v2, 1)
+        return round(v1 / m * 100, 1), round(v2 / m * 100, 1)
+
+    def invert_normalise(v1, v2):
+        """For avg/economy/sr: lower is better. Invert so bigger bar = better."""
+        m = max(v1, v2, 1)
+        s1 = round((1 - v1 / m) * 100 + 10, 1) if v1 > 0 else 0
+        s2 = round((1 - v2 / m) * 100 + 10, 1) if v2 > 0 else 0
+        return s1, s2
+
+    w1n, w2n = normalise(wkts1, wkts2)
+    a1n, a2n = invert_normalise(avg1, avg2)
+    e1n, e2n = invert_normalise(eco1, eco2)
+    s1n, s2n = invert_normalise(sr1, sr2)
+
+    categories = ["Wickets", "Avg (inv)", "Economy (inv)", "Bowl SR (inv)"]
+    vals1 = [w1n, a1n, e1n, s1n, w1n]
+    vals2 = [w2n, a2n, e2n, s2n, w2n]
+    cats  = categories + [categories[0]]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=vals1, theta=cats, name=name1, fill="toself",
+        line=dict(color="#6b4f1d", width=3),
+        fillcolor="rgba(107, 79, 29, 0.2)",
+        hovertemplate=f"<b>{name1}</b><br>%{{theta}}: %{{r:.1f}}<extra></extra>",
+    ))
+    fig.add_trace(go.Scatterpolar(
+        r=vals2, theta=cats, name=name2, fill="toself",
+        line=dict(color="#15803d", width=3),
+        fillcolor="rgba(21, 128, 61, 0.2)",
+        hovertemplate=f"<b>{name2}</b><br>%{{theta}}: %{{r:.1f}}<extra></extra>",
+    ))
+    fig.update_layout(
+        font=dict(family="Inter, sans-serif", size=12, color="#0f172a"),
+        polar=dict(
+            bgcolor="#ffffff",
+            radialaxis=dict(
+                visible=True, range=[0, 110],
+                tickfont=dict(size=10, color="#475569"),
+                tickvals=[25, 50, 75, 100],
+                ticktext=["25", "50", "75", "100"],
+                gridcolor="#e2e8f0", linecolor="#cbd5e1",
+            ),
+            angularaxis=dict(tickfont=dict(size=11, color="#0f172a"), gridcolor="#e2e8f0", linecolor="#cbd5e1"),
+        ),
+        annotations=[dict(
+            text="Avg, Economy & Bowl SR are inverted — higher bar = better",
+            x=0.5, y=-0.22, xref="paper", yref="paper",
+            showarrow=False, font=dict(size=10, color="#64748b"),
+        )],
+        showlegend=True,
+        legend=dict(orientation="h", y=-0.28, x=0.5, xanchor="center", font=dict(size=12, color="#0f172a")),
+        margin=dict(t=40, b=100, l=60, r=60),
+        height=470,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(fig, use_container_width=True, key=key)
+
+
+def player_block_bowling(title, stats, format_used, photo_source=None):
+    """Metric card for a bowler — shows wickets, bowling avg, economy."""
+    st.markdown(f"### {title}")
+    if photo_source:
+        st.image(photo_source, width=110)
+    wkts = stats.get("wickets", "N/A")
+    bavg = stats.get("bowling_average", "N/A")
+    econ = stats.get("economy", "N/A")
+    st.markdown(
+        f"""
+        <div class="metric-card-bowl">
+          <div class="metric-title">Wickets</div>
+          <div class="metric-value">{wkts}</div>
+        </div>
+        <div class="metric-card-bowl">
+          <div class="metric-title">Bowling Average</div>
+          <div class="metric-value">{bavg}</div>
+        </div>
+        <div class="metric-card-bowl">
+          <div class="metric-title">Economy</div>
+          <div class="metric-value">{econ}</div>
+        </div>
+        <span class="tag" style="background:#f0fdf4;border-color:#86efac;color:#15803d;">Stats Basis: {format_used.upper()}</span>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def resolve_player_alias(name):
     clean_name = str(name or "").strip().lower()
     if not clean_name:
@@ -582,7 +735,7 @@ def generate_tts_audio(text, language_code):
     return audio_fp.read()
 
 
-def call_backend(player1, player2, language, match_format):
+def call_backend(player1, player2, language, match_format, stats_mode="batting"):
     return requests.post(
         BACKEND_URL,
         json={
@@ -590,6 +743,7 @@ def call_backend(player1, player2, language, match_format):
           "player2": player2.strip(),
           "language": language,
           "format": match_format,
+          "stats_mode": stats_mode,
         },
         timeout=60,
     )
@@ -619,6 +773,8 @@ if "last_language_label" not in st.session_state:
   st.session_state.last_language_label = "English"
 if "last_format_label" not in st.session_state:
   st.session_state.last_format_label = "All Formats Combined"
+if "last_stats_mode" not in st.session_state:
+  st.session_state.last_stats_mode = "batting"
 
 # Apply voice-detected players before text inputs are instantiated.
 if "pending_player1" in st.session_state and "pending_player2" in st.session_state:
@@ -673,7 +829,7 @@ with input_col1:
 with input_col2:
     player2 = st.text_input("Player 2", key="player2", placeholder="e.g. Rohit Sharma")
 
-controls_col1, controls_col2, controls_col3 = st.columns([1.15, 1.15, 1.7])
+controls_col1, controls_col2, controls_col3, controls_col4 = st.columns([1.1, 1.1, 1.0, 1.3])
 with controls_col1:
   language_label = st.selectbox(
     "Commentary language",
@@ -687,6 +843,14 @@ with controls_col2:
     index=list(FORMAT_OPTIONS.keys()).index(st.session_state.last_format_label),
   )
 with controls_col3:
+  stats_mode_label = st.radio(
+    "Stats mode",
+    options=["Batting", "Bowling"],
+    index=0 if st.session_state.last_stats_mode == "batting" else 1,
+    horizontal=True,
+  )
+  selected_stats_mode = "bowling" if "Bowling" in stats_mode_label else "batting"
+with controls_col4:
   st.write("")
   st.write("")
   compare_clicked = st.button("Compare Players", type="primary")
@@ -711,7 +875,7 @@ if compare_clicked:
 
     with st.spinner("Fetching live stats and generating analysis..."):
       try:
-        response = call_backend(player1_resolved, player2_resolved, selected_language, selected_format)
+        response = call_backend(player1_resolved, player2_resolved, selected_language, selected_format, selected_stats_mode)
       except requests.RequestException as exc:
         st.session_state.last_result = None
         st.session_state.last_error = f"Could not reach backend at {BACKEND_URL}: {exc}"
@@ -737,6 +901,7 @@ if compare_clicked:
             st.session_state.last_compared_players = (player1_resolved, player2_resolved)
             st.session_state.last_language_label = language_label
             st.session_state.last_format_label = format_label
+            st.session_state.last_stats_mode = selected_stats_mode
             st.session_state.last_error = ""
 
 if st.session_state.last_error:
@@ -747,6 +912,7 @@ if st.session_state.last_result:
   player1_resolved, player2_resolved = st.session_state.last_compared_players
   language_label = st.session_state.last_language_label
   selected_language = LANGUAGE_OPTIONS.get(language_label, "en")
+  active_mode = result.get("stats_mode", st.session_state.get("last_stats_mode", "batting"))
   analysis = result.get("analysis", {})
   keys = list(analysis.keys())
   k1, k2 = keys[0], keys[1]
@@ -755,10 +921,11 @@ if st.session_state.last_result:
   photo1 = fetch_player_photo_url(player1_resolved)
   photo2 = fetch_player_photo_url(player2_resolved)
 
+  mode_badge = '<span class="bowl-badge">Bowling Mode</span>' if active_mode == "bowling" else ""
   st.markdown(
     f"""
     <div class="result-banner">
-      <div class="result-title">Comparison Ready</div>
+      <div class="result-title">Comparison Ready {mode_badge}</div>
       <div class="result-subtitle">{html.escape(player1_resolved.title())} vs {html.escape(player2_resolved.title())}</div>
     </div>
     """,
@@ -767,107 +934,170 @@ if st.session_state.last_result:
 
   st.write("")
   c1, c2 = st.columns(2)
-  with c1:
-    player_block(player1_resolved.title(), stats1, formats.get("player1", "unknown"), photo1)
-  with c2:
-    player_block(player2_resolved.title(), stats2, formats.get("player2", "unknown"), photo2)
+
+  if active_mode == "bowling":
+    # ── BOWLING: player metric cards ──
+    with c1:
+      player_block_bowling(player1_resolved.title(), stats1, formats.get("player1", "unknown"), photo1)
+    with c2:
+      player_block_bowling(player2_resolved.title(), stats2, formats.get("player2", "unknown"), photo2)
+  else:
+    with c1:
+      player_block(player1_resolved.title(), stats1, formats.get("player1", "unknown"), photo1)
+    with c2:
+      player_block(player2_resolved.title(), stats2, formats.get("player2", "unknown"), photo2)
 
   st.subheader("Performance Comparison")
   c_graph, c_table = st.columns([1.1, 0.9])
+
+  breakdown = result.get("format_breakdown", {})
+  bowl_breakdown = result.get("bowling_breakdown", {})
+  p1_breakdown = breakdown.get("player1", {})
+  p2_breakdown = breakdown.get("player2", {})
+  p1_bowl_bd = bowl_breakdown.get("player1", {})
+  p2_bowl_bd = bowl_breakdown.get("player2", {})
+
   with c_graph:
     tab_overview, tab_test, tab_odi, tab_t20i, tab_ipl = st.tabs(["Overview", "Test", "ODI", "T20I", "IPL"])
-    
-    breakdown = result.get("format_breakdown", {})
-    p1_breakdown = breakdown.get("player1", {})
-    p2_breakdown = breakdown.get("player2", {})
-    
-    with tab_overview:
-      draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), stats1, stats2, key="radar_overview")
-      
-    with tab_test:
-      test1 = p1_breakdown.get("test", {})
-      test2 = p2_breakdown.get("test", {})
-      if test1 or test2:
-        draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), test1, test2, key="radar_test")
-      else:
-        st.info("No Test match statistics available for comparison.")
-        
-    with tab_odi:
-      odi1 = p1_breakdown.get("odi", {})
-      odi2 = p2_breakdown.get("odi", {})
-      if odi1 or odi2:
-        draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), odi1, odi2, key="radar_odi")
-      else:
-        st.info("No ODI match statistics available for comparison.")
-        
-    with tab_t20i:
-      t20i1 = p1_breakdown.get("t20i", {})
-      t20i2 = p2_breakdown.get("t20i", {})
-      if t20i1 or t20i2:
-        draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), t20i1, t20i2, key="radar_t20i")
-      else:
-        st.info("No T20I match statistics available for comparison.")
 
-    with tab_ipl:
-      ipl1 = p1_breakdown.get("ipl", {})
-      ipl2 = p2_breakdown.get("ipl", {})
-      if ipl1 or ipl2:
-        draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), ipl1, ipl2, key="radar_ipl")
-      else:
-        st.info("No IPL statistics available for comparison.")
-  
+    if active_mode == "bowling":
+      with tab_overview:
+        draw_radar_comparison_bowling(player1_resolved.title(), player2_resolved.title(), stats1, stats2, key="bowl_radar_overview")
+      with tab_test:
+        t1 = p1_bowl_bd.get("test", {}); t2 = p2_bowl_bd.get("test", {})
+        if t1 or t2: draw_radar_comparison_bowling(player1_resolved.title(), player2_resolved.title(), t1, t2, key="bowl_radar_test")
+        else: st.info("No Test bowling statistics available.")
+      with tab_odi:
+        o1 = p1_bowl_bd.get("odi", {}); o2 = p2_bowl_bd.get("odi", {})
+        if o1 or o2: draw_radar_comparison_bowling(player1_resolved.title(), player2_resolved.title(), o1, o2, key="bowl_radar_odi")
+        else: st.info("No ODI bowling statistics available.")
+      with tab_t20i:
+        t1 = p1_bowl_bd.get("t20i", {}); t2 = p2_bowl_bd.get("t20i", {})
+        if t1 or t2: draw_radar_comparison_bowling(player1_resolved.title(), player2_resolved.title(), t1, t2, key="bowl_radar_t20i")
+        else: st.info("No T20I bowling statistics available.")
+      with tab_ipl:
+        i1 = p1_bowl_bd.get("ipl", {}); i2 = p2_bowl_bd.get("ipl", {})
+        if i1 or i2: draw_radar_comparison_bowling(player1_resolved.title(), player2_resolved.title(), i1, i2, key="bowl_radar_ipl")
+        else: st.info("No IPL bowling statistics available.")
+    else:
+      with tab_overview:
+        draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), stats1, stats2, key="radar_overview")
+      with tab_test:
+        test1 = p1_breakdown.get("test", {}); test2 = p2_breakdown.get("test", {})
+        if test1 or test2: draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), test1, test2, key="radar_test")
+        else: st.info("No Test match statistics available for comparison.")
+      with tab_odi:
+        odi1 = p1_breakdown.get("odi", {}); odi2 = p2_breakdown.get("odi", {})
+        if odi1 or odi2: draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), odi1, odi2, key="radar_odi")
+        else: st.info("No ODI match statistics available for comparison.")
+      with tab_t20i:
+        t20i1 = p1_breakdown.get("t20i", {}); t20i2 = p2_breakdown.get("t20i", {})
+        if t20i1 or t20i2: draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), t20i1, t20i2, key="radar_t20i")
+        else: st.info("No T20I match statistics available for comparison.")
+      with tab_ipl:
+        ipl1 = p1_breakdown.get("ipl", {}); ipl2 = p2_breakdown.get("ipl", {})
+        if ipl1 or ipl2: draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), ipl1, ipl2, key="radar_ipl")
+        else: st.info("No IPL statistics available for comparison.")
+
   with c_table:
-    breakdown = result.get("format_breakdown")
-    if breakdown:
-      p1_breakdown = breakdown.get("player1", {})
-      p2_breakdown = breakdown.get("player2", {})
-      
+    if active_mode == "bowling" and bowl_breakdown:
       table_rows = ""
-      for fmt_name, fmt_label in [("test", "TEST"), ("odi", "ODI"), ("t20i", "T20I"), ("ipl", "IPL")]:
-        p1_fmt = p1_breakdown.get(fmt_name, {})
-        p2_fmt = p2_breakdown.get(fmt_name, {})
-        
+      for fmt_name, fmt_lbl in [("test","TEST"),("odi","ODI"),("t20i","T20I"),("ipl","IPL")]:
+        p1f = p1_bowl_bd.get(fmt_name, {}); p2f = p2_bowl_bd.get(fmt_name, {})
+        if p1f or p2f:
+          table_rows += f"""
+          <tr style="background:#f0fdf4;font-weight:bold;border-top:2px solid var(--line);">
+            <td colspan="3" style="padding:10px;color:#15803d;text-transform:uppercase;font-family:'Rajdhani',sans-serif;font-size:1.1rem;">{fmt_lbl}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Wickets</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p1f.get('wickets','N/A')}</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p2f.get('wickets','N/A')}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Bowl Average</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p1f.get('bowling_average','N/A')}</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p2f.get('bowling_average','N/A')}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Economy</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p1f.get('economy','N/A')}</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p2f.get('economy','N/A')}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #cbd5e1;">
+            <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Bowl Strike Rate</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p1f.get('bowling_sr','N/A')}</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p2f.get('bowling_sr','N/A')}</td>
+          </tr>
+          """
+      st.markdown(
+        f"""
+        <div class="section-card" style="margin:0;padding:16px;">
+          <div class="section-heading" style="margin-bottom:12px;">Bowling Format Breakdown</div>
+          <table style="width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
+            <thead>
+              <tr style="background:#f0fdf4;border-bottom:2px solid #86efac;">
+                <th style="padding:10px;text-align:left;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;">Metric</th>
+                <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player1_resolved.title())}</th>
+                <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player2_resolved.title())}</th>
+              </tr>
+            </thead>
+            <tbody>{table_rows}</tbody>
+          </table>
+        </div>
+        """,
+        unsafe_allow_html=True,
+      )
+    elif breakdown:
+      table_rows = ""
+      for fmt_name, fmt_label_t in [("test","TEST"),("odi","ODI"),("t20i","T20I"),("ipl","IPL")]:
+        p1_fmt = p1_breakdown.get(fmt_name, {}); p2_fmt = p2_breakdown.get(fmt_name, {})
         if p1_fmt or p2_fmt:
-          table_rows += f"""<tr style="background-color: #f8fbff; font-weight: bold; border-top: 2px solid var(--line);">
-<td colspan="3" style="padding: 10px; color: var(--brand); text-transform: uppercase; font-family: 'Rajdhani', sans-serif; font-size: 1.1rem;">{fmt_label}</td>
-</tr>
-<tr style="border-bottom: 1px solid #e2e8f0;">
-<td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Innings</td>
-<td style="padding: 8px 12px; text-align: center; color: var(--ink);">{p1_fmt.get('innings', 'N/A')}</td>
-<td style="padding: 8px 12px; text-align: center; color: var(--ink);">{p2_fmt.get('innings', 'N/A')}</td>
-</tr>
-<tr style="border-bottom: 1px solid #e2e8f0;">
-<td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Runs</td>
-<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('runs', 'N/A')}</td>
-<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('runs', 'N/A')}</td>
-</tr>
-<tr style="border-bottom: 1px solid #e2e8f0;">
-<td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Average</td>
-<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('average', 'N/A')}</td>
-<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('average', 'N/A')}</td>
-</tr>
-<tr style="border-bottom: 1px solid #cbd5e1;">
-<td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Strike Rate</td>
-<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('strike_rate', 'N/A')}</td>
-<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('strike_rate', 'N/A')}</td>
-</tr>"""
-      
-      table_html = f"""<div class="section-card" style="margin: 0; padding: 16px;">
-<div class="section-heading" style="margin-bottom: 12px;">Format Stats Breakdown</div>
-<table style="width: 100%; border-collapse: collapse; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;">
-<thead>
-<tr style="background-color: #f1f5f9; border-bottom: 2px solid var(--line);">
-<th style="padding: 10px; text-align: left; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700;">Metric</th>
-<th style="padding: 10px; text-align: center; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700; width: 35%;">{html.escape(player1_resolved.title())}</th>
-<th style="padding: 10px; text-align: center; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700; width: 35%;">{html.escape(player2_resolved.title())}</th>
-</tr>
-</thead>
-<tbody>
-{table_rows}
-</tbody>
-</table>
-</div>"""
-      st.markdown(table_html, unsafe_allow_html=True)
+          table_rows += f"""
+          <tr style="background-color: #f8fbff; font-weight: bold; border-top: 2px solid var(--line);">
+            <td colspan="3" style="padding: 10px; color: var(--brand); text-transform: uppercase; font-family: 'Rajdhani', sans-serif; font-size: 1.1rem;">{fmt_label_t}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Innings</td>
+            <td style="padding: 8px 12px; text-align: center; color: var(--ink);">{p1_fmt.get('innings', 'N/A')}</td>
+            <td style="padding: 8px 12px; text-align: center; color: var(--ink);">{p2_fmt.get('innings', 'N/A')}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Runs</td>
+            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('runs', 'N/A')}</td>
+            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('runs', 'N/A')}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Average</td>
+            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('average', 'N/A')}</td>
+            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('average', 'N/A')}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #cbd5e1;">
+            <td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Strike Rate</td>
+            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('strike_rate', 'N/A')}</td>
+            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('strike_rate', 'N/A')}</td>
+          </tr>
+          """
+      st.markdown(
+        f"""
+        <div class="section-card" style="margin: 0; padding: 16px;">
+          <div class="section-heading" style="margin-bottom: 12px;">Format Stats Breakdown</div>
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #f1f5f9; border-bottom: 2px solid var(--line);">
+                <th style="padding: 10px; text-align: left; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700;">Metric</th>
+                <th style="padding: 10px; text-align: center; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700; width: 35%;">{html.escape(player1_resolved.title())}</th>
+                <th style="padding: 10px; text-align: center; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700; width: 35%;">{html.escape(player2_resolved.title())}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {table_rows}
+            </tbody>
+          </table>
+        </div>
+        """,
+        unsafe_allow_html=True,
+      )
     else:
       st.caption("Detailed format breakdown not available.")
   insight_items = result.get("comparison", [])
@@ -910,12 +1140,13 @@ if st.session_state.last_result:
   confidence = result.get("confidence", 0)
   safe_winner = html.escape(str(winner))
   safe_confidence = html.escape(str(confidence))
+  winner_label = "Superior Bowler" if active_mode == "bowling" else "Predicted Winner"
   st.markdown(
     f"""
     <div class="section-card">
       <div class="summary-grid">
         <div class="summary-item">
-          <div class="summary-label">Predicted Winner</div>
+          <div class="summary-label">{winner_label}</div>
           <div class="summary-value">{safe_winner}</div>
         </div>
         <div class="summary-item">
@@ -935,3 +1166,5 @@ if st.session_state.last_result:
       st.audio(audio_bytes, format="audio/mp3")
   except Exception as exc:
     st.warning(f"Could not generate commentary audio: {exc}")
+
+

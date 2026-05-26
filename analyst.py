@@ -273,24 +273,33 @@ def get_player_stats(player_name):
 
         all_formats = ["odi", "t20i", "test", "ipl"]
         batting_by_format = {}
+        bowling_by_format = {}
 
         for fmt in all_formats:
-            current = {
+            bat = {
                 row.get("stat"): row.get("value")
                 for row in stat_rows
                 if row.get("fn") == "batting" and str(row.get("matchtype", "")).lower() == fmt
             }
-            if current:
-                batting_by_format[fmt] = current
+            if bat:
+                batting_by_format[fmt] = bat
 
-        if not batting_by_format:
-            return None, f"No batting stats in ODI/T20I/Test/IPL for '{resolved_name}'"
+            bowl = {
+                row.get("stat"): row.get("value")
+                for row in stat_rows
+                if row.get("fn") == "bowling" and str(row.get("matchtype", "")).lower() == fmt
+            }
+            if bowl:
+                bowling_by_format[fmt] = bowl
 
+        if not batting_by_format and not bowling_by_format:
+            return None, f"No batting or bowling stats in ODI/T20I/Test/IPL for '{resolved_name}'"
+
+        # ── Batting aggregates ──────────────────────────────────────────
         total_runs = 0.0
         weighted_avg_sum = 0.0
         weighted_sr_sum = 0.0
         total_innings = 0.0
-
         avg_values = []
         sr_values = []
 
@@ -303,12 +312,10 @@ def get_player_stats(player_name):
 
             if fmt in ["odi", "t20i", "test"]:
                 total_runs += runs
-
                 if innings > 0:
                     weighted_avg_sum += avg * innings
                     weighted_sr_sum += sr * innings
                     total_innings += innings
-
                 if avg > 0:
                     avg_values.append(avg)
                 if sr > 0:
@@ -331,15 +338,63 @@ def get_player_stats(player_name):
         international_formats = ["odi", "t20i", "test"]
         selected_format = "+".join([fmt.upper() for fmt in international_formats if fmt in batting_by_format])
         if not selected_format:
-            selected_format = "IPL"
+            selected_format = "IPL" if batting_by_format else "—"
+
+        # ── Bowling aggregates ──────────────────────────────────────────
+        total_wickets = 0.0
+        weighted_bowl_avg_sum = 0.0
+        weighted_econ_sum = 0.0
+        total_bowl_innings = 0.0
+        bowl_avg_values = []
+        econ_values = []
+
+        bowling_breakdown = {}
+        for fmt, bowling in bowling_by_format.items():
+            wickets = to_number(bowling.get("wickets"))
+            bowl_avg = to_number(bowling.get("avg"))          # bowling average
+            economy  = to_number(bowling.get("econ"))         # economy rate
+            bowl_inn = to_number(bowling.get("innings"))       # innings bowled
+            sr_bowl  = to_number(bowling.get("sr"))           # bowling strike rate
+
+            if fmt in ["odi", "t20i", "test"]:
+                total_wickets += wickets
+                if bowl_inn > 0:
+                    weighted_bowl_avg_sum += bowl_avg * bowl_inn
+                    weighted_econ_sum     += economy  * bowl_inn
+                    total_bowl_innings    += bowl_inn
+                if bowl_avg > 0:
+                    bowl_avg_values.append(bowl_avg)
+                if economy > 0:
+                    econ_values.append(economy)
+
+            bowling_breakdown[fmt] = {
+                "wickets":         format_metric(wickets, 0),
+                "bowling_average": format_metric(bowl_avg),
+                "economy":         format_metric(economy),
+                "bowling_sr":      format_metric(sr_bowl),
+                "innings":         format_metric(bowl_inn, 0),
+            }
+
+        if total_bowl_innings > 0:
+            combined_bowl_avg  = weighted_bowl_avg_sum / total_bowl_innings
+            combined_economy   = weighted_econ_sum     / total_bowl_innings
+        else:
+            combined_bowl_avg  = sum(bowl_avg_values) / len(bowl_avg_values) if bowl_avg_values else 0.0
+            combined_economy   = sum(econ_values)     / len(econ_values)     if econ_values      else 0.0
 
         result = {
-            "runs": format_metric(total_runs, 0),
-            "average": format_metric(combined_avg),
-            "strike_rate": format_metric(combined_sr),
-            "format_used": selected_format,
-            "player_name": resolved_name,
+            # batting summary
+            "runs":         format_metric(total_runs, 0),
+            "average":      format_metric(combined_avg),
+            "strike_rate":  format_metric(combined_sr),
+            "format_used":  selected_format,
+            "player_name":  resolved_name,
             "format_breakdown": format_breakdown,
+            # bowling summary
+            "wickets":          format_metric(total_wickets, 0),
+            "bowling_average":  format_metric(combined_bowl_avg),
+            "economy":          format_metric(combined_economy),
+            "bowling_breakdown": bowling_breakdown,
         }
         _write_cached_stats(player_name, result)
         _write_cached_stats(resolved_name, result)
@@ -348,10 +403,14 @@ def get_player_stats(player_name):
         return None, f"Failed to fetch stats for '{player_name}'"
 
 
-def cricket_analyst(player1, player2, language="en", match_format="combined"):
+def cricket_analyst(player1, player2, language="en", match_format="combined", stats_mode="batting"):
     language_code = (language or "en").strip().lower()
     if language_code not in SUPPORTED_LANGUAGES:
         language_code = "en"
+
+    stats_mode = str(stats_mode or "batting").strip().lower()
+    if stats_mode not in ("batting", "bowling"):
+        stats_mode = "batting"
 
     player1 = resolve_player_alias(player1)
     player2 = resolve_player_alias(player2)
@@ -375,6 +434,149 @@ def cricket_analyst(player1, player2, language="en", match_format="combined"):
     p2_data = dict(p2_stats)
 
     fmt_key = str(match_format or "combined").lower()
+
+    # ── Select the right breakdown key based on mode ──────────────────
+    breakdown_key  = "bowling_breakdown" if stats_mode == "bowling" else "format_breakdown"
+    fallback_label = fmt_key.upper() if fmt_key != "combined" else "COMBINED"
+
+    if stats_mode == "bowling":
+        # ── BOWLING MODE ───────────────────────────────────────────────
+        if fmt_key != "combined":
+            p1_fmt = p1_data.get("bowling_breakdown", {}).get(fmt_key)
+            p2_fmt = p2_data.get("bowling_breakdown", {}).get(fmt_key)
+            if not p1_fmt and not p2_fmt:
+                return {
+                    "status": "error",
+                    "message": f"Neither player has bowling stats for format '{fmt_key.upper()}'."
+                }
+            def _apply_bowl_fmt(pdata, pfmt):
+                if pfmt:
+                    pdata["wickets"]         = pfmt.get("wickets", "0")
+                    pdata["bowling_average"] = pfmt.get("bowling_average", "0.00")
+                    pdata["economy"]         = pfmt.get("economy", "0.00")
+                    pdata["bowling_sr"]      = pfmt.get("bowling_sr", "0.00")
+                    pdata["format_used"]     = fmt_key.upper()
+                else:
+                    pdata["wickets"]         = "N/A"
+                    pdata["bowling_average"] = "N/A"
+                    pdata["economy"]         = "N/A"
+                    pdata["bowling_sr"]      = "N/A"
+                    pdata["format_used"]     = fmt_key.upper()
+            _apply_bowl_fmt(p1_data, p1_fmt)
+            _apply_bowl_fmt(p2_data, p2_fmt)
+
+        note_text = (
+            f"Note: wickets/bowling_average/economy are for the {fmt_key.upper()} format."
+            if fmt_key != "combined"
+            else "Note: wickets/bowling_average/economy are combined from ODI, T20I, and Test formats."
+        )
+
+        prompt = f"""
+You are BOTH:
+1. A cricket analyst (data-driven)
+2. A cricket commentator (expressive)
+
+You are comparing the BOWLING stats of two players.
+
+Use this data:
+{player1}: wickets={p1_data.get('wickets')}, bowling_average={p1_data.get('bowling_average')}, economy={p1_data.get('economy')}, bowling_sr={p1_data.get('bowling_sr', 'N/A')}
+{player2}: wickets={p2_data.get('wickets')}, bowling_average={p2_data.get('bowling_average')}, economy={p2_data.get('economy')}, bowling_sr={p2_data.get('bowling_sr', 'N/A')}
+
+{note_text}
+
+For bowling: lower average is BETTER; lower economy is BETTER; more wickets = more impactful.
+
+STRICT RULES:
+- Use ONLY the given data
+- Do NOT add external knowledge
+- Return ONLY valid JSON
+- No markdown or extra text
+
+FORMAT:
+{{
+  "format_used": {{
+    "player1": "",
+    "player2": ""
+  }},
+  "analysis": {{
+    "player1": {{
+      "wickets": "",
+      "bowling_average": "",
+      "economy": "",
+      "strength": ""
+    }},
+    "player2": {{
+      "wickets": "",
+      "bowling_average": "",
+      "economy": "",
+      "strength": ""
+    }}
+  }},
+  "comparison": ["", "", ""],
+  "commentary": "",
+  "verdict": "",
+  "prediction": "",
+  "confidence": ""
+}}
+IMPORTANT:
+- Prediction must be one player name (better bowler)
+- Confidence must be percentage (0–100%)
+- Keep "commentary" in {SUPPORTED_LANGUAGES[language_code]}
+- "commentary" must be at least 50 words
+
+Compare these two bowlers:
+{player1} vs {player2}
+"""
+
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            output = response.choices[0].message.content.strip()
+            if "```" in output:
+                output = output.replace("```json", "").replace("```", "").strip()
+            parsed_output = json.loads(output)
+
+            # Winner logic for bowling: lower bowling average = better
+            try:
+                ba1 = float(p1_data["bowling_average"]) if p1_data["bowling_average"] not in ("N/A", "0", "0.00") else 999
+                ba2 = float(p2_data["bowling_average"]) if p2_data["bowling_average"] not in ("N/A", "0", "0.00") else 999
+            except Exception:
+                ba1 = ba2 = 999
+
+            winner = player1 if ba1 <= ba2 else player2
+            diff = abs(ba1 - ba2)
+            confidence = 90 if diff > 5 else (75 if diff > 2 else 60)
+
+            parsed_output["prediction"] = winner
+            parsed_output["confidence"] = confidence
+            parsed_output["format_used"] = {
+                "player1": p1_data.get("format_used", "unknown"),
+                "player2": p2_data.get("format_used", "unknown"),
+            }
+            parsed_output["bowling_breakdown"] = {
+                "player1": p1_stats.get("bowling_breakdown", {}),
+                "player2": p2_stats.get("bowling_breakdown", {}),
+            }
+            parsed_output["stats_mode"] = "bowling"
+
+            commentary = str(parsed_output.get("commentary", "")).strip()
+            if word_count(commentary) < 50:
+                commentary = (
+                    f"{player1} has taken {p1_data.get('wickets', 'N/A')} wickets at an average of "
+                    f"{p1_data.get('bowling_average', 'N/A')} with an economy of {p1_data.get('economy', 'N/A')}. "
+                    f"{player2} has taken {p2_data.get('wickets', 'N/A')} wickets at an average of "
+                    f"{p2_data.get('bowling_average', 'N/A')} with an economy of {p2_data.get('economy', 'N/A')}. "
+                    "Both are quality bowlers whose records speak for themselves across formats."
+                )
+            parsed_output["commentary"] = ensure_commentary_language(commentary, language_code)
+            return parsed_output
+
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    # ── BATTING MODE (original logic) ─────────────────────────────────
     if fmt_key != "combined":
         p1_fmt = p1_data.get("format_breakdown", {}).get(fmt_key)
         p2_fmt = p2_data.get("format_breakdown", {}).get(fmt_key)
@@ -508,6 +710,11 @@ Compare these two players:
             "player1": p1_stats.get("format_breakdown", {}),
             "player2": p2_stats.get("format_breakdown", {}),
         }
+        parsed_output["bowling_breakdown"] = {
+            "player1": p1_stats.get("bowling_breakdown", {}),
+            "player2": p2_stats.get("bowling_breakdown", {}),
+        }
+        parsed_output["stats_mode"] = "batting"
 
         commentary = str(parsed_output.get("commentary", "")).strip()
         if word_count(commentary) < 50:
@@ -522,3 +729,4 @@ Compare these two players:
             "status": "error",
             "message": str(e)
         }
+
