@@ -5,8 +5,7 @@ python-dotenv
 groq
 requests
 streamlit
-matplotlib
-numpy
 gTTS
 SpeechRecognition
 pyttsx3
+plotly

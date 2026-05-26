@@ -271,10 +271,10 @@ def get_player_stats(player_name):
         if not stat_rows:
             return None, f"No stats returned for '{resolved_name}'"
 
-        target_formats = ["odi", "t20i", "test"]
+        all_formats = ["odi", "t20i", "test", "ipl"]
         batting_by_format = {}
 
-        for fmt in target_formats:
+        for fmt in all_formats:
             current = {
                 row.get("stat"): row.get("value")
                 for row in stat_rows
@@ -284,7 +284,7 @@ def get_player_stats(player_name):
                 batting_by_format[fmt] = current
 
         if not batting_by_format:
-            return None, f"No batting stats in ODI/T20I/Test for '{resolved_name}'"
+            return None, f"No batting stats in ODI/T20I/Test/IPL for '{resolved_name}'"
 
         total_runs = 0.0
         weighted_avg_sum = 0.0
@@ -301,17 +301,18 @@ def get_player_stats(player_name):
             sr = to_number(batting.get("sr"))
             innings = to_number(batting.get("innings"))
 
-            total_runs += runs
+            if fmt in ["odi", "t20i", "test"]:
+                total_runs += runs
 
-            if innings > 0:
-                weighted_avg_sum += avg * innings
-                weighted_sr_sum += sr * innings
-                total_innings += innings
+                if innings > 0:
+                    weighted_avg_sum += avg * innings
+                    weighted_sr_sum += sr * innings
+                    total_innings += innings
 
-            if avg > 0:
-                avg_values.append(avg)
-            if sr > 0:
-                sr_values.append(sr)
+                if avg > 0:
+                    avg_values.append(avg)
+                if sr > 0:
+                    sr_values.append(sr)
 
             format_breakdown[fmt] = {
                 "runs": format_metric(runs, 0),
@@ -327,7 +328,10 @@ def get_player_stats(player_name):
             combined_avg = sum(avg_values) / len(avg_values) if avg_values else 0.0
             combined_sr = sum(sr_values) / len(sr_values) if sr_values else 0.0
 
-        selected_format = "+".join([fmt.upper() for fmt in target_formats if fmt in batting_by_format])
+        international_formats = ["odi", "t20i", "test"]
+        selected_format = "+".join([fmt.upper() for fmt in international_formats if fmt in batting_by_format])
+        if not selected_format:
+            selected_format = "IPL"
 
         result = {
             "runs": format_metric(total_runs, 0),
@@ -344,7 +348,7 @@ def get_player_stats(player_name):
         return None, f"Failed to fetch stats for '{player_name}'"
 
 
-def cricket_analyst(player1, player2, language="en"):
+def cricket_analyst(player1, player2, language="en", match_format="combined"):
     language_code = (language or "en").strip().lower()
     if language_code not in SUPPORTED_LANGUAGES:
         language_code = "en"
@@ -353,18 +357,57 @@ def cricket_analyst(player1, player2, language="en"):
     player2 = resolve_player_alias(player2)
 
     # Fetch player stats from CricAPI
-    p1_data, p1_error = get_player_stats(player1)
-    p2_data, p2_error = get_player_stats(player2)
-    if not p1_data or not p2_data:
+    p1_stats, p1_error = get_player_stats(player1)
+    p2_stats, p2_error = get_player_stats(player2)
+    if not p1_stats or not p2_stats:
         error_parts = []
-        if not p1_data:
+        if not p1_stats:
             error_parts.append(f"{player1}: {p1_error or 'player not found'}")
-        if not p2_data:
+        if not p2_stats:
             error_parts.append(f"{player2}: {p2_error or 'player not found'}")
         return {
             "status": "error",
             "message": "CricAPI lookup failed. " + " | ".join(error_parts)
         }
+
+    # Make copies to avoid mutating cached stats
+    p1_data = dict(p1_stats)
+    p2_data = dict(p2_stats)
+
+    fmt_key = str(match_format or "combined").lower()
+    if fmt_key != "combined":
+        p1_fmt = p1_data.get("format_breakdown", {}).get(fmt_key)
+        p2_fmt = p2_data.get("format_breakdown", {}).get(fmt_key)
+        
+        if not p1_fmt and not p2_fmt:
+            return {
+                "status": "error",
+                "message": f"Neither player has stats for format '{fmt_key.upper()}'."
+            }
+            
+        if p1_fmt:
+            p1_data["runs"] = p1_fmt.get("runs", "0")
+            p1_data["average"] = p1_fmt.get("average", "0.00")
+            p1_data["strike_rate"] = p1_fmt.get("strike_rate", "0.00")
+            p1_data["format_used"] = fmt_key.upper()
+        else:
+            p1_data["runs"] = "N/A"
+            p1_data["average"] = "N/A"
+            p1_data["strike_rate"] = "N/A"
+            p1_data["format_used"] = fmt_key.upper()
+
+        if p2_fmt:
+            p2_data["runs"] = p2_fmt.get("runs", "0")
+            p2_data["average"] = p2_fmt.get("average", "0.00")
+            p2_data["strike_rate"] = p2_fmt.get("strike_rate", "0.00")
+            p2_data["format_used"] = fmt_key.upper()
+        else:
+            p2_data["runs"] = "N/A"
+            p2_data["average"] = "N/A"
+            p2_data["strike_rate"] = "N/A"
+            p2_data["format_used"] = fmt_key.upper()
+
+    note_text = "Note: runs/average/strike_rate are combined from ODI, T20I, and Test formats." if fmt_key == "combined" else f"Note: runs/average/strike_rate are for the {fmt_key.upper()} format."
 
     # Prepare data for LLM prompt
     prompt = f"""
@@ -373,9 +416,10 @@ You are BOTH:
 2. A cricket commentator (expressive)
 
 Use this data:
-{player1}: {p1_data}\n{player2}: {p2_data}
+{player1}: {p1_data}
+{player2}: {p2_data}
 
-Note: runs/average/strike_rate are combined from ODI, T20I, and Test formats.
+{note_text}
 
 STRICT RULES:
 - Use ONLY the given data
@@ -459,6 +503,10 @@ Compare these two players:
         parsed_output["format_used"] = {
             "player1": p1_data.get("format_used", "unknown"),
             "player2": p2_data.get("format_used", "unknown"),
+        }
+        parsed_output["format_breakdown"] = {
+            "player1": p1_stats.get("format_breakdown", {}),
+            "player2": p2_stats.get("format_breakdown", {}),
         }
 
         commentary = str(parsed_output.get("commentary", "")).strip()

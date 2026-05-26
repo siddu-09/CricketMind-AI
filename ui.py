@@ -5,8 +5,7 @@ import re
 from urllib.parse import quote
 
 from gtts import gTTS
-import matplotlib.pyplot as plt
-import numpy as np
+import plotly.graph_objects as go
 import requests
 import streamlit as st
 from stt import transcribe_wav_bytes, extract_players_from_transcript
@@ -17,6 +16,13 @@ LANGUAGE_OPTIONS = {
   "English": "en",
   "Hindi": "hi",
   "Kannada": "kn",
+}
+FORMAT_OPTIONS = {
+  "All Formats Combined": "combined",
+  "ODI": "odi",
+  "T20I": "t20i",
+  "Test": "test",
+  "IPL": "ipl",
 }
 COMMON_PLAYER_ALIASES = {
     "kohli": "Virat Kohli",
@@ -444,44 +450,100 @@ def fetch_player_photo_url(player_name):
         f"name={quote(name)}&size=256&background=e2e8f0&color=0f172a&bold=true"
     )
 
+def draw_radar_comparison(name1, name2, stats1, stats2, key=None):
+    stats1 = stats1 or {}
+    stats2 = stats2 or {}
+    runs1 = to_float(stats1.get("runs"))
+    runs2 = to_float(stats2.get("runs"))
+    avg1  = to_float(stats1.get("average"))
+    avg2  = to_float(stats2.get("average"))
+    sr1   = to_float(stats1.get("strike_rate"))
+    sr2   = to_float(stats2.get("strike_rate"))
 
-def draw_bar_comparison(name1, name2, stats1, stats2):
-  runs1 = to_float(stats1.get("runs"))
-  runs2 = to_float(stats2.get("runs"))
-  avg1 = to_float(stats1.get("average"))
-  avg2 = to_float(stats2.get("average"))
-  sr1 = to_float(stats1.get("strike_rate"))
-  sr2 = to_float(stats2.get("strike_rate"))
+    # Normalise each metric to 0–100 so axes are comparable.
+    # Without this, Runs (thousands) would dwarf Avg/SR (tens).
+    def normalise(v1, v2):
+        m = max(v1, v2, 1)
+        return round(v1 / m * 100, 1), round(v2 / m * 100, 1)
 
-  fig, (ax_runs, ax_other) = plt.subplots(1, 2, figsize=(10.2, 4.2), gridspec_kw={"width_ratios": [1, 1.5]})
+    r1n, r2n = normalise(runs1, runs2)
+    a1n, a2n = normalise(avg1,  avg2)
+    s1n, s2n = normalise(sr1,   sr2)
 
-  # Runs on its own axis so high values do not flatten Avg/SR bars.
-  run_x = np.arange(1)
-  width = 0.34
-  ax_runs.set_facecolor("#ffffff")
-  ax_runs.bar(run_x - width / 2, [runs1], width, label=name1, color="#6b4f1d", alpha=0.9)
-  ax_runs.bar(run_x + width / 2, [runs2], width, label=name2, color="#7a7d86", alpha=0.9)
-  ax_runs.set_xticks(run_x)
-  ax_runs.set_xticklabels(["Runs"])
-  ax_runs.set_ylabel("Runs")
-  ax_runs.grid(axis="y", alpha=0.25)
+    categories = ["Runs", "Average", "Strike Rate"]
+    # Plotly radar needs the first point repeated to close the polygon.
+    vals1 = [r1n, a1n, s1n, r1n]
+    vals2 = [r2n, a2n, s2n, r2n]
+    cats  = categories + [categories[0]]
 
-  metric_labels = ["Average", "Strike Rate"]
-  values1 = [avg1, sr1]
-  values2 = [avg2, sr2]
-  metric_x = np.arange(len(metric_labels))
+    fig = go.Figure()
 
-  ax_other.set_facecolor("#ffffff")
-  ax_other.bar(metric_x - width / 2, values1, width, label=name1, color="#6b4f1d", alpha=0.9)
-  ax_other.bar(metric_x + width / 2, values2, width, label=name2, color="#7a7d86", alpha=0.9)
-  ax_other.set_xticks(metric_x)
-  ax_other.set_xticklabels(metric_labels)
-  ax_other.set_ylabel("Value")
-  ax_other.grid(axis="y", alpha=0.25)
-  ax_other.legend(loc="upper right")
+    fig.add_trace(go.Scatterpolar(
+        r=vals1,
+        theta=cats,
+        name=name1,
+        fill="toself",
+        line=dict(color="#6b4f1d", width=3),
+        fillcolor="rgba(107, 79, 29, 0.2)",
+        hovertemplate=(
+            f"<b>{name1}</b><br>"
+            "Metric: %{theta}<br>"
+            "Score: %{r:.1f}<extra></extra>"
+        ),
+    ))
 
-  st.pyplot(fig, use_container_width=True)
-  plt.close(fig)
+    fig.add_trace(go.Scatterpolar(
+        r=vals2,
+        theta=cats,
+        name=name2,
+        fill="toself",
+        line=dict(color="#0284c7", width=3),
+        fillcolor="rgba(2, 132, 199, 0.2)",
+        hovertemplate=(
+            f"<b>{name2}</b><br>"
+            "Metric: %{theta}<br>"
+            "Score: %{r:.1f}<extra></extra>"
+        ),
+    ))
+
+    fig.update_layout(
+        font=dict(
+            family="Inter, sans-serif",
+            size=12,
+            color="#0f172a"
+        ),
+        polar=dict(
+            bgcolor="#ffffff",
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100],
+                tickfont=dict(size=10, color="#475569"),
+                tickvals=[25, 50, 75, 100],
+                ticktext=["25%", "50%", "75%", "100%"],
+                gridcolor="#e2e8f0",
+                linecolor="#cbd5e1",
+            ),
+            angularaxis=dict(
+                tickfont=dict(size=12, color="#0f172a"),
+                gridcolor="#e2e8f0",
+                linecolor="#cbd5e1",
+            ),
+        ),
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            y=-0.15,
+            x=0.5,
+            xanchor="center",
+            font=dict(size=12, color="#0f172a")
+        ),
+        margin=dict(t=40, b=80, l=60, r=60),
+        height=450,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+
+    st.plotly_chart(fig, use_container_width=True, key=key)
 
 
 def resolve_player_alias(name):
@@ -520,14 +582,15 @@ def generate_tts_audio(text, language_code):
     return audio_fp.read()
 
 
-def call_backend(player1, player2, language):
+def call_backend(player1, player2, language, match_format):
     return requests.post(
         BACKEND_URL,
-    json={
-      "player1": player1.strip(),
-      "player2": player2.strip(),
-      "language": language,
-    },
+        json={
+          "player1": player1.strip(),
+          "player2": player2.strip(),
+          "language": language,
+          "format": match_format,
+        },
         timeout=60,
     )
 
@@ -554,6 +617,8 @@ if "last_compared_players" not in st.session_state:
   st.session_state.last_compared_players = ("", "")
 if "last_language_label" not in st.session_state:
   st.session_state.last_language_label = "English"
+if "last_format_label" not in st.session_state:
+  st.session_state.last_format_label = "All Formats Combined"
 
 # Apply voice-detected players before text inputs are instantiated.
 if "pending_player1" in st.session_state and "pending_player2" in st.session_state:
@@ -608,7 +673,7 @@ with input_col1:
 with input_col2:
     player2 = st.text_input("Player 2", key="player2", placeholder="e.g. Rohit Sharma")
 
-controls_col1, controls_col2, _ = st.columns([1.15, 0.8, 2.05])
+controls_col1, controls_col2, controls_col3 = st.columns([1.15, 1.15, 1.7])
 with controls_col1:
   language_label = st.selectbox(
     "Commentary language",
@@ -616,10 +681,18 @@ with controls_col1:
     index=list(LANGUAGE_OPTIONS.keys()).index(st.session_state.last_language_label),
   )
 with controls_col2:
+  format_label = st.selectbox(
+    "Match format",
+    options=list(FORMAT_OPTIONS.keys()),
+    index=list(FORMAT_OPTIONS.keys()).index(st.session_state.last_format_label),
+  )
+with controls_col3:
+  st.write("")
   st.write("")
   compare_clicked = st.button("Compare Players", type="primary")
 
 selected_language = LANGUAGE_OPTIONS[language_label]
+selected_format = FORMAT_OPTIONS[format_label]
 
 if compare_clicked:
   player1_resolved = resolve_player_alias(player1)
@@ -638,7 +711,7 @@ if compare_clicked:
 
     with st.spinner("Fetching live stats and generating analysis..."):
       try:
-        response = call_backend(player1_resolved, player2_resolved, selected_language)
+        response = call_backend(player1_resolved, player2_resolved, selected_language, selected_format)
       except requests.RequestException as exc:
         st.session_state.last_result = None
         st.session_state.last_error = f"Could not reach backend at {BACKEND_URL}: {exc}"
@@ -663,6 +736,7 @@ if compare_clicked:
             st.session_state.last_result = result
             st.session_state.last_compared_players = (player1_resolved, player2_resolved)
             st.session_state.last_language_label = language_label
+            st.session_state.last_format_label = format_label
             st.session_state.last_error = ""
 
 if st.session_state.last_error:
@@ -698,9 +772,104 @@ if st.session_state.last_result:
   with c2:
     player_block(player2_resolved.title(), stats2, formats.get("player2", "unknown"), photo2)
 
-  st.subheader("Performance Comparison (Bar Chart)")
-  draw_bar_comparison(player1_resolved.title(), player2_resolved.title(), stats1, stats2)
+  st.subheader("Performance Comparison")
+  c_graph, c_table = st.columns([1.1, 0.9])
+  with c_graph:
+    tab_overview, tab_test, tab_odi, tab_t20i, tab_ipl = st.tabs(["Overview", "Test", "ODI", "T20I", "IPL"])
+    
+    breakdown = result.get("format_breakdown", {})
+    p1_breakdown = breakdown.get("player1", {})
+    p2_breakdown = breakdown.get("player2", {})
+    
+    with tab_overview:
+      draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), stats1, stats2, key="radar_overview")
+      
+    with tab_test:
+      test1 = p1_breakdown.get("test", {})
+      test2 = p2_breakdown.get("test", {})
+      if test1 or test2:
+        draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), test1, test2, key="radar_test")
+      else:
+        st.info("No Test match statistics available for comparison.")
+        
+    with tab_odi:
+      odi1 = p1_breakdown.get("odi", {})
+      odi2 = p2_breakdown.get("odi", {})
+      if odi1 or odi2:
+        draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), odi1, odi2, key="radar_odi")
+      else:
+        st.info("No ODI match statistics available for comparison.")
+        
+    with tab_t20i:
+      t20i1 = p1_breakdown.get("t20i", {})
+      t20i2 = p2_breakdown.get("t20i", {})
+      if t20i1 or t20i2:
+        draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), t20i1, t20i2, key="radar_t20i")
+      else:
+        st.info("No T20I match statistics available for comparison.")
 
+    with tab_ipl:
+      ipl1 = p1_breakdown.get("ipl", {})
+      ipl2 = p2_breakdown.get("ipl", {})
+      if ipl1 or ipl2:
+        draw_radar_comparison(player1_resolved.title(), player2_resolved.title(), ipl1, ipl2, key="radar_ipl")
+      else:
+        st.info("No IPL statistics available for comparison.")
+  
+  with c_table:
+    breakdown = result.get("format_breakdown")
+    if breakdown:
+      p1_breakdown = breakdown.get("player1", {})
+      p2_breakdown = breakdown.get("player2", {})
+      
+      table_rows = ""
+      for fmt_name, fmt_label in [("test", "TEST"), ("odi", "ODI"), ("t20i", "T20I"), ("ipl", "IPL")]:
+        p1_fmt = p1_breakdown.get(fmt_name, {})
+        p2_fmt = p2_breakdown.get(fmt_name, {})
+        
+        if p1_fmt or p2_fmt:
+          table_rows += f"""<tr style="background-color: #f8fbff; font-weight: bold; border-top: 2px solid var(--line);">
+<td colspan="3" style="padding: 10px; color: var(--brand); text-transform: uppercase; font-family: 'Rajdhani', sans-serif; font-size: 1.1rem;">{fmt_label}</td>
+</tr>
+<tr style="border-bottom: 1px solid #e2e8f0;">
+<td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Innings</td>
+<td style="padding: 8px 12px; text-align: center; color: var(--ink);">{p1_fmt.get('innings', 'N/A')}</td>
+<td style="padding: 8px 12px; text-align: center; color: var(--ink);">{p2_fmt.get('innings', 'N/A')}</td>
+</tr>
+<tr style="border-bottom: 1px solid #e2e8f0;">
+<td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Runs</td>
+<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('runs', 'N/A')}</td>
+<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('runs', 'N/A')}</td>
+</tr>
+<tr style="border-bottom: 1px solid #e2e8f0;">
+<td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Average</td>
+<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('average', 'N/A')}</td>
+<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('average', 'N/A')}</td>
+</tr>
+<tr style="border-bottom: 1px solid #cbd5e1;">
+<td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Strike Rate</td>
+<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('strike_rate', 'N/A')}</td>
+<td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('strike_rate', 'N/A')}</td>
+</tr>"""
+      
+      table_html = f"""<div class="section-card" style="margin: 0; padding: 16px;">
+<div class="section-heading" style="margin-bottom: 12px;">Format Stats Breakdown</div>
+<table style="width: 100%; border-collapse: collapse; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;">
+<thead>
+<tr style="background-color: #f1f5f9; border-bottom: 2px solid var(--line);">
+<th style="padding: 10px; text-align: left; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700;">Metric</th>
+<th style="padding: 10px; text-align: center; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700; width: 35%;">{html.escape(player1_resolved.title())}</th>
+<th style="padding: 10px; text-align: center; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700; width: 35%;">{html.escape(player2_resolved.title())}</th>
+</tr>
+</thead>
+<tbody>
+{table_rows}
+</tbody>
+</table>
+</div>"""
+      st.markdown(table_html, unsafe_allow_html=True)
+    else:
+      st.caption("Detailed format breakdown not available.")
   insight_items = result.get("comparison", [])
   safe_insights = "".join(f"<li>{html.escape(str(item))}</li>" for item in insight_items)
   st.markdown(

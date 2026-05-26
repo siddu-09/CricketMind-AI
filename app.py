@@ -9,6 +9,7 @@ class Query(BaseModel):
     player1: str
     player2: str
     language: str = "en"
+    format: str = "combined"
 
 
 @app.get("/")
@@ -18,5 +19,5 @@ def home():
 
 @app.post("/analyze")
 def analyze(query: Query):
-    answer = cricket_analyst(query.player1, query.player2, query.language)
+    answer = cricket_analyst(query.player1, query.player2, query.language, query.format)
     return answer
