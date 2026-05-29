@@ -1,11 +1,12 @@
 import io
 import os
 import re
-from difflib import SequenceMatcher
 
 from dotenv import load_dotenv
 from groq import Groq
 
+# F1: import everything from the single centralised registry
+from players import COMMON_PLAYER_ALIASES, _match_player_name, extract_players_from_transcript  # noqa: F401
 
 load_dotenv()
 
@@ -15,59 +16,6 @@ _TRANSCRIPTION_MODELS = [
     "whisper-large-v3",
     "distil-whisper-large-v3-en",
 ]
-
-COMMON_PLAYER_ALIASES = {
-    "kohli": "Virat Kohli",
-    "virat": "Virat Kohli",
-    "virt": "Virat Kohli",
-    "veerat": "Virat Kohli",
-    "verat": "Virat Kohli",
-    "virat koli": "Virat Kohli",
-    "virat kohlee": "Virat Kohli",
-    "virat kohli": "Virat Kohli",
-    "king": "Virat Kohli",
-    "king kohli": "Virat Kohli",
-    "chase master": "Virat Kohli",
-    "sharma": "Rohit Sharma",
-    "rohit": "Rohit Sharma",
-    "rohit sharma": "Rohit Sharma",
-    "rohit sharmaa": "Rohit Sharma",
-    "rohith": "Rohit Sharma",
-    "roit": "Rohit Sharma",
-    "hitman": "Rohit Sharma",
-    "the hitman": "Rohit Sharma",
-    "dhoni": "MS Dhoni",
-    "msd": "MS Dhoni",
-    "ms dhoni": "MS Dhoni",
-    "m s dhoni": "MS Dhoni",
-    "mahendra singh dhoni": "MS Dhoni",
-    "ms doni": "MS Dhoni",
-    "em es dhoni": "MS Dhoni",
-    "thala": "MS Dhoni",
-    "captain cool": "MS Dhoni",
-    "rahul": "KL Rahul",
-    "kl rahul": "KL Rahul",
-    "k l rahul": "KL Rahul",
-    "kel rahul": "KL Rahul",
-    "kay el rahul": "KL Rahul",
-    "hardik": "Hardik Pandya",
-    "hardik pandya": "Hardik Pandya",
-    "bumrah": "Jasprit Bumrah",
-    "jasprit bumrah": "Jasprit Bumrah",
-    "jaspreet bumrah": "Jasprit Bumrah",
-    "bumra": "Jasprit Bumrah",
-    "bumraa": "Jasprit Bumrah",
-    "boom": "Jasprit Bumrah",
-    "boom boom": "Jasprit Bumrah",
-    "siraj": "Mohammed Siraj",
-    "mohammed siraj": "Mohammed Siraj",
-    "mohammad siraj": "Mohammed Siraj",
-    "mohd siraj": "Mohammed Siraj",
-    "sachin": "Sachin Tendulkar",
-    "sachin tendulkar": "Sachin Tendulkar",
-    "sachin tendoolkar": "Sachin Tendulkar",
-    "master blaster": "Sachin Tendulkar",
-}
 
 
 def _normalize(text):
@@ -89,7 +37,6 @@ def _get_client():
 
 
 def _guess_audio_extension(audio_bytes, filename="", mime_type=""):
-    # Prefer explicit hints from uploader when available.
     file_hint = str(filename or "").strip().lower()
     if "." in file_hint:
         ext = file_hint.rsplit(".", 1)[-1]
@@ -140,7 +87,7 @@ def transcribe_wav_bytes(audio_bytes, language="en", filename="", mime_type=""):
             "prompt": (
                 "Cricket context. Player names can include Virat Kohli, Rohit Sharma, "
                 "MS Dhoni, KL Rahul, Hardik Pandya, Jasprit Bumrah, Mohammed Siraj, "
-                "Sachin Tendulkar. Return clear text."
+                "Sachin Tendulkar, Babar Azam, Pat Cummins, Ben Stokes. Return clear text."
             ),
         }
         if lang:
@@ -160,69 +107,6 @@ def transcribe_wav_bytes(audio_bytes, language="en", filename="", mime_type=""):
     return "", f"Whisper transcription failed: {last_error}"
 
 
-def _match_player_name(fragment):
-    normalized = _normalize(fragment)
-    if not normalized:
-        return ""
-
-    if normalized in COMMON_PLAYER_ALIASES:
-        return COMMON_PLAYER_ALIASES[normalized]
-
-    # Prefer longest direct phrase match in the spoken fragment.
-    for alias in sorted(COMMON_PLAYER_ALIASES, key=len, reverse=True):
-        if alias in normalized:
-            return COMMON_PLAYER_ALIASES[alias]
-
-    # Try fuzzy matching on the full phrase and its token-level chunks.
-    # This helps with short STT variants like "virt" for "virat".
-    tokens = normalized.split()
-    candidates = [normalized]
-    candidates.extend(tokens)
-    if len(tokens) > 1:
-        candidates.extend(" ".join(tokens[i : i + 2]) for i in range(len(tokens) - 1))
-
-    best_alias = ""
-    best_score = 0.0
-    best_candidate_len = 0
-    for candidate in candidates:
-        for alias in COMMON_PLAYER_ALIASES:
-            score = SequenceMatcher(a=candidate, b=alias).ratio()
-            if score > best_score:
-                best_score = score
-                best_alias = alias
-                best_candidate_len = len(candidate)
-
-    threshold = 0.70 if best_candidate_len <= 5 else 0.78
-    if best_alias and best_score >= threshold:
-        return COMMON_PLAYER_ALIASES[best_alias]
-
-    return ""
-
-
-def extract_players_from_transcript(text):
-    normalized = _normalize(text)
-    if not normalized:
-        return None, None
-
-    normalized = re.sub(r"\b(vs\.?|v\/?s|versus|verses|against|and|with|or)\b", " vs ", normalized)
-    normalized = re.sub(r"\s+", " ", normalized).strip()
-
-    parts = [part.strip() for part in normalized.split(" vs ") if part.strip()]
-
-    if len(parts) >= 2:
-        player1 = _match_player_name(parts[0])
-        player2 = _match_player_name(parts[1])
-        if player1 and player2 and player1.lower() != player2.lower():
-            return player1, player2
-
-    # Fallback: detect first two unique aliases appearing anywhere in transcript.
-    found = []
-    for alias in sorted(COMMON_PLAYER_ALIASES, key=len, reverse=True):
-        if alias in normalized:
-            canonical = COMMON_PLAYER_ALIASES[alias]
-            if canonical not in found:
-                found.append(canonical)
-            if len(found) == 2:
-                return found[0], found[1]
-
-    return None, None
+# extract_players_from_transcript is imported directly from players.py above.
+# It is re-exported here so existing callers (ui.py) can keep using:
+#   from stt import transcribe_wav_bytes, extract_players_from_transcript

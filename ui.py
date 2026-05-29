@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 import requests
 import streamlit as st
 from stt import transcribe_wav_bytes, extract_players_from_transcript
+from players import resolve_player_alias
 
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000/analyze")
@@ -23,32 +24,6 @@ FORMAT_OPTIONS = {
   "T20I": "t20i",
   "Test": "test",
   "IPL": "ipl",
-}
-COMMON_PLAYER_ALIASES = {
-    "kohli": "Virat Kohli",
-    "virat": "Virat Kohli",
-  "king": "Virat Kohli",
-  "king kohli": "Virat Kohli",
-  "chase master": "Virat Kohli",
-    "sharma": "Rohit Sharma",
-    "rohit": "Rohit Sharma",
-  "hitman": "Rohit Sharma",
-  "the hitman": "Rohit Sharma",
-    "dhoni": "MS Dhoni",
-    "msd": "MS Dhoni",
-  "thala": "MS Dhoni",
-  "captain cool": "MS Dhoni",
-    "rahul": "KL Rahul",
-    "hardik": "Hardik Pandya",
-    "bumrah": "Jasprit Bumrah",
-  "boom": "Jasprit Bumrah",
-  "boom boom": "Jasprit Bumrah",
-    "siraj": "Mohammed Siraj",
-    "rishab": "Rishabh Pant",
-    "rishab pant": "Rishabh Pant",
-    "rishabh": "Rishabh Pant",
-    "sachin": "Sachin Tendulkar",
-  "master blaster": "Sachin Tendulkar",
 }
 
 
@@ -699,29 +674,6 @@ def player_block_bowling(title, stats, format_used, photo_source=None):
     )
 
 
-def resolve_player_alias(name):
-    clean_name = str(name or "").strip().lower()
-    if not clean_name:
-        return ""
-
-    normalized = re.sub(r"[^a-z0-9\s]", " ", clean_name)
-    normalized = re.sub(r"\s+", " ", normalized).strip()
-
-    if normalized in COMMON_PLAYER_ALIASES:
-        return COMMON_PLAYER_ALIASES[normalized]
-    if clean_name in COMMON_PLAYER_ALIASES:
-        return COMMON_PLAYER_ALIASES[clean_name]
-
-    tokens = normalized.split()
-    for i in range(len(tokens)):
-        for j in range(i + 1, len(tokens) + 1):
-            phrase = " ".join(tokens[i:j])
-            if phrase in COMMON_PLAYER_ALIASES:
-                return COMMON_PLAYER_ALIASES[phrase]
-
-    return str(name).strip().title()
-
-
 @st.cache_data(show_spinner=False)
 def generate_tts_audio(text, language_code):
     clean_text = (text or "").strip()
@@ -1100,6 +1052,355 @@ if st.session_state.last_result:
       )
     else:
       st.caption("Detailed format breakdown not available.")
+
+  st.write("")
+  st.subheader("Deep Dive Analysis & Splits")
+  tab_h2h, tab_splits, tab_situational, tab_timeline = st.tabs([
+      "Head-to-Head & Form", 
+      "Venue & Opposition Splits", 
+      "Situational Records", 
+      "Career Timeline"
+  ])
+
+  p1_det = result.get("player1_details", {})
+  p2_det = result.get("player2_details", {})
+
+  with tab_h2h:
+      # ── Recent Form Section ──
+      st.markdown("##### Recent Form (Last 5 Innings)")
+      rf1, rf2 = st.columns(2)
+      with rf1:
+          st.markdown(f"**{player1_resolved.title()}**")
+          form_html1 = ""
+          for score in p1_det.get("recent_form", []):
+              is_good = False
+              if active_mode == "bowling":
+                  try:
+                      w = int(score.split("/")[0])
+                      is_good = w >= 2
+                  except:
+                      pass
+              else:
+                  try:
+                      s = int(score.replace("*", ""))
+                      is_good = s >= 50
+                  except:
+                      pass
+              bg = "#ecfdf5" if is_good else "#f8fafc"
+              border = "#bbf7d0" if is_good else "#e2e8f0"
+              color = "#10b981" if is_good else "#475569"
+              form_html1 += f'<span style="display:inline-block;padding:6px 12px;margin:2px 4px;border-radius:16px;background:{bg};border:1px solid {border};color:{color};font-weight:700;font-size:0.9rem;">{score}</span>'
+          st.markdown(f'<div style="margin-bottom:15px;">{form_html1}</div>', unsafe_allow_html=True)
+          
+      with rf2:
+          st.markdown(f"**{player2_resolved.title()}**")
+          form_html2 = ""
+          for score in p2_det.get("recent_form", []):
+              is_good = False
+              if active_mode == "bowling":
+                  try:
+                      w = int(score.split("/")[0])
+                      is_good = w >= 2
+                  except:
+                      pass
+              else:
+                  try:
+                      s = int(score.replace("*", ""))
+                      is_good = s >= 50
+                  except:
+                      pass
+              bg = "#ecfdf5" if is_good else "#f8fafc"
+              border = "#bbf7d0" if is_good else "#e2e8f0"
+              color = "#10b981" if is_good else "#475569"
+              form_html2 += f'<span style="display:inline-block;padding:6px 12px;margin:2px 4px;border-radius:16px;background:{bg};border:1px solid {border};color:{color};font-weight:700;font-size:0.9rem;">{score}</span>'
+          st.markdown(f'<div style="margin-bottom:15px;">{form_html2}</div>', unsafe_allow_html=True)
+          
+      # ── Head-to-Head Section ──
+      h2h = result.get("head_to_head")
+      if h2h:
+          st.markdown("##### Direct Head-to-Head Matchup")
+          if h2h.get("type") == "batter_vs_bowler":
+              batter = h2h.get("batter")
+              bowler = h2h.get("bowler")
+              st.markdown(
+                  f"""
+                  <div class="result-banner" style="background:linear-gradient(120deg, #fefafd 0%, #faf0f7 100%);border-color:#eab8e4;padding:16px;border-radius:12px;margin:0;">
+                      <div style="font-family:'Rajdhani',sans-serif;font-size:1.4rem;font-weight:700;color:#701a65;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.02em;">
+                          🔥 Matchup: {html.escape(batter)} vs {html.escape(bowler)}
+                      </div>
+                      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));gap:12px;">
+                          <div class="summary-item" style="background:#fff;border-color:#f3d5ef;padding:8px 12px;">
+                              <div class="summary-label" style="color:#a24996;">Matches</div>
+                              <div class="summary-value" style="color:#701a65;font-size:1.6rem;">{h2h.get('matches')}</div>
+                          </div>
+                          <div class="summary-item" style="background:#fff;border-color:#f3d5ef;padding:8px 12px;">
+                              <div class="summary-label" style="color:#a24996;">Balls Faced</div>
+                              <div class="summary-value" style="color:#701a65;font-size:1.6rem;">{h2h.get('balls')}</div>
+                          </div>
+                          <div class="summary-item" style="background:#fff;border-color:#f3d5ef;padding:8px 12px;">
+                              <div class="summary-label" style="color:#a24996;">Runs Scored</div>
+                              <div class="summary-value" style="color:#701a65;font-size:1.6rem;">{h2h.get('runs')}</div>
+                          </div>
+                          <div class="summary-item" style="background:#fff;border-color:#f3d5ef;padding:8px 12px;">
+                              <div class="summary-label" style="color:#a24996;">Dismissals</div>
+                              <div class="summary-value" style="color:#dc2626;font-size:1.6rem;font-weight:800;">{h2h.get('dismissals')}</div>
+                          </div>
+                          <div class="summary-item" style="background:#fff;border-color:#f3d5ef;padding:8px 12px;">
+                              <div class="summary-label" style="color:#a24996;">Strike Rate</div>
+                              <div class="summary-value" style="color:#701a65;font-size:1.6rem;">{h2h.get('strike_rate')}</div>
+                          </div>
+                      </div>
+                      <div style="margin-top:12px;font-size:0.85rem;color:#a24996;font-weight:500;">
+                          Matchup breakdown: Dots: <b>{h2h.get('dots')}</b> | Fours: <b>{h2h.get('fours')}</b> | Sixes: <b>{h2h.get('sixes')}</b>
+                      </div>
+                  </div>
+                  """,
+                  unsafe_allow_html=True
+              )
+          elif h2h.get("type") == "batter_comparison":
+              p1_h2h = h2h.get("player1", {})
+              p2_h2h = h2h.get("player2", {})
+              st.markdown(
+                  f"""
+                  <div class="result-banner" style="background:linear-gradient(120deg, #fbfaff 0%, #f5f2ff 100%);border-color:#cbd2ee;padding:16px;border-radius:12px;margin:0;">
+                      <div style="font-family:'Rajdhani',sans-serif;font-size:1.3rem;font-weight:700;color:#2e1a47;margin-bottom:10px;text-transform:uppercase;">
+                          🏏 Head-to-Head Career in Shared Matches ({h2h.get('matches')} games)
+                      </div>
+                      <table style="width:100%;border-collapse:collapse;font-size:0.95rem;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #cbd2ee;">
+                          <thead>
+                              <tr style="background:#f1eff7;border-bottom:2px solid #cbd5e1;">
+                                  <th style="padding:10px;text-align:left;color:var(--ink);">Player</th>
+                                  <th style="padding:10px;text-align:center;color:var(--ink);">Runs Scored</th>
+                                  <th style="padding:10px;text-align:center;color:var(--ink);">Average</th>
+                                  <th style="padding:10px;text-align:center;color:var(--ink);">Strike Rate</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              <tr style="border-bottom:1px solid #e2e8f0;">
+                                  <td style="padding:10px;font-weight:600;color:var(--ink);">{html.escape(player1_resolved.title())}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:700;color:var(--brand);">{p1_h2h.get('runs')}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:600;color:var(--ink);">{p1_h2h.get('average')}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:600;color:var(--ink);">{p1_h2h.get('strike_rate')}</td>
+                              </tr>
+                              <tr>
+                                  <td style="padding:10px;font-weight:600;color:var(--ink);">{html.escape(player2_resolved.title())}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:700;color:#0284c7;">{p2_h2h.get('runs')}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:600;color:var(--ink);">{p2_h2h.get('average')}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:600;color:var(--ink);">{p2_h2h.get('strike_rate')}</td>
+                              </tr>
+                          </tbody>
+                      </table>
+                  </div>
+                  """,
+                  unsafe_allow_html=True
+              )
+          elif h2h.get("type") == "bowler_comparison":
+              p1_h2h = h2h.get("player1", {})
+              p2_h2h = h2h.get("player2", {})
+              st.markdown(
+                  f"""
+                  <div class="result-banner" style="background:linear-gradient(120deg, #f0fdf4 0%, #e8f9ed 100%);border-color:#bbf7d0;padding:16px;border-radius:12px;margin:0;">
+                      <div style="font-family:'Rajdhani',sans-serif;font-size:1.3rem;font-weight:700;color:#14532d;margin-bottom:10px;text-transform:uppercase;">
+                          🏏 Head-to-Head Career in Shared Matches ({h2h.get('matches')} games)
+                      </div>
+                      <table style="width:100%;border-collapse:collapse;font-size:0.95rem;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #bbf7d0;">
+                          <thead>
+                              <tr style="background:#eefdf3;border-bottom:2px solid #86efac;">
+                                  <th style="padding:10px;text-align:left;color:#15803d;">Player</th>
+                                  <th style="padding:10px;text-align:center;color:#15803d;">Wickets Taken</th>
+                                  <th style="padding:10px;text-align:center;color:#15803d;">Overs Bowled</th>
+                                  <th style="padding:10px;text-align:center;color:#15803d;">Bowling Average</th>
+                                  <th style="padding:10px;text-align:center;color:#15803d;">Economy Rate</th>
+                              </tr>
+                          </thead>
+                          <tbody>
+                              <tr style="border-bottom:1px solid #e2e8f0;">
+                                  <td style="padding:10px;font-weight:600;color:var(--ink);">{html.escape(player1_resolved.title())}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:700;color:#16a34a;">{p1_h2h.get('wickets')}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:600;color:var(--ink);">{p1_h2h.get('overs')}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:600;color:var(--ink);">{p1_h2h.get('average')}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:600;color:var(--ink);">{p1_h2h.get('economy')}</td>
+                              </tr>
+                              <tr>
+                                  <td style="padding:10px;font-weight:600;color:var(--ink);">{html.escape(player2_resolved.title())}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:700;color:#0284c7;">{p2_h2h.get('wickets')}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:600;color:var(--ink);">{p2_h2h.get('overs')}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:600;color:var(--ink);">{p2_h2h.get('average')}</td>
+                                  <td style="padding:10px;text-align:center;font-weight:600;color:var(--ink);">{p2_h2h.get('economy')}</td>
+                              </tr>
+                          </tbody>
+                      </table>
+                  </div>
+                  """,
+                  unsafe_allow_html=True
+              )
+
+  with tab_splits:
+      col_v, col_o = st.columns(2)
+      val1_label = "Avg" if active_mode == "batting" else "Bowl Avg"
+      val2_label = "Strike Rate" if active_mode == "batting" else "Economy"
+      
+      with col_v:
+          st.markdown("##### Venue Performance Splits")
+          v1 = p1_det.get("venue_splits", {})
+          v2 = p2_det.get("venue_splits", {})
+          venue_rows = ""
+          for v in ["Home", "Away", "Neutral"]:
+              d1 = v1.get(v, {})
+              d2 = v2.get(v, {})
+              venue_rows += f"""
+              <tr style="border-bottom:1px solid #e2e8f0;">
+                  <td style="padding:8px 12px;font-weight:bold;color:var(--muted);">{v}</td>
+                  <td style="padding:8px 12px;text-align:center;color:var(--brand);font-weight:600;">{d1.get('avg')}<br><span style="font-size:0.75rem;color:var(--muted);font-weight:normal;">{d1.get('sr_or_econ')}</span></td>
+                  <td style="padding:8px 12px;text-align:center;color:#0284c7;font-weight:600;">{d2.get('avg')}<br><span style="font-size:0.75rem;color:var(--muted);font-weight:normal;">{d2.get('sr_or_econ')}</span></td>
+              </tr>
+              """
+          st.markdown(
+              f"""
+              <table style="width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
+                  <thead>
+                      <tr style="background:#f8fafc;border-bottom:2px solid var(--line);">
+                          <th style="padding:8px 12px;text-align:left;color:var(--ink);">Venue</th>
+                          <th style="padding:8px 12px;text-align:center;color:var(--ink);width:35%;">{html.escape(player1_resolved.title())}<br><span style="font-size:0.75rem;font-weight:normal;color:var(--muted);">{val1_label} / {val2_label}</span></th>
+                          <th style="padding:8px 12px;text-align:center;color:var(--ink);width:35%;">{html.escape(player2_resolved.title())}<br><span style="font-size:0.75rem;font-weight:normal;color:var(--muted);">{val1_label} / {val2_label}</span></th>
+                      </tr>
+                  </thead>
+                  <tbody>{venue_rows}</tbody>
+              </table>
+              """,
+              unsafe_allow_html=True
+          )
+          
+      with col_o:
+          st.markdown("##### Opposition Performance Splits")
+          o1 = p1_det.get("opposition_splits", {})
+          o2 = p2_det.get("opposition_splits", {})
+          opp_rows = ""
+          for opp in sorted(list(o1.keys())):
+              d1 = o1.get(opp, {})
+              d2 = o2.get(opp, {})
+              opp_rows += f"""
+              <tr style="border-bottom:1px solid #e2e8f0;">
+                  <td style="padding:8px 12px;font-weight:bold;color:var(--muted);">{opp}</td>
+                  <td style="padding:8px 12px;text-align:center;color:var(--brand);font-weight:600;">{d1.get('avg')}<br><span style="font-size:0.75rem;color:var(--muted);font-weight:normal;">{d1.get('sr_or_econ')}</span></td>
+                  <td style="padding:8px 12px;text-align:center;color:#0284c7;font-weight:600;">{d2.get('avg')}<br><span style="font-size:0.75rem;color:var(--muted);font-weight:normal;">{d2.get('sr_or_econ')}</span></td>
+              </tr>
+              """
+          st.markdown(
+              f"""
+              <table style="width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
+                  <thead>
+                      <tr style="background:#f8fafc;border-bottom:2px solid var(--line);">
+                          <th style="padding:8px 12px;text-align:left;color:var(--ink);">Opposition</th>
+                          <th style="padding:8px 12px;text-align:center;color:var(--ink);width:35%;">{html.escape(player1_resolved.title())}<br><span style="font-size:0.75rem;font-weight:normal;color:var(--muted);">{val1_label} / {val2_label}</span></th>
+                          <th style="padding:8px 12px;text-align:center;color:var(--ink);width:35%;">{html.escape(player2_resolved.title())}<br><span style="font-size:0.75rem;font-weight:normal;color:var(--muted);">{val1_label} / {val2_label}</span></th>
+                      </tr>
+                  </thead>
+                  <tbody>{opp_rows}</tbody>
+              </table>
+              """,
+              unsafe_allow_html=True
+          )
+
+  with tab_situational:
+      col_c, col_p = st.columns(2)
+      val1_label = "Avg" if active_mode == "batting" else "Bowl Avg"
+      val2_label = "SR" if active_mode == "batting" else "Econ"
+      
+      with col_c:
+          st.markdown("##### Innings Situation: Chasing vs Setting Target")
+          ch1 = s1.get("chasing", {}); ch2 = s2.get("chasing", {})
+          se1 = s1.get("setting", {}); se2 = s2.get("setting", {})
+          st.markdown(
+              f"""
+              <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px;">
+                  <div style="display:flex;justify-content:space-between;border-bottom:1px solid #cbd5e1;padding-bottom:8px;margin-bottom:8px;">
+                      <span style="font-weight:bold;color:#475569;">Innings / Situation</span>
+                      <span style="font-weight:bold;color:var(--brand);width:35%;text-align:center;">{html.escape(player1_resolved.title())}</span>
+                      <span style="font-weight:bold;color:#0284c7;width:35%;text-align:center;">{html.escape(player2_resolved.title())}</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #e2e8f0;">
+                      <span style="color:#64748b;">Chasing Target</span>
+                      <span style="width:35%;text-align:center;font-weight:600;color:var(--ink);">{ch1.get('avg')} <span style="font-size:0.75rem;color:#94a3b8;">({ch1.get('sr_or_econ')})</span></span>
+                      <span style="width:35%;text-align:center;font-weight:600;color:var(--ink);">{ch2.get('avg')} <span style="font-size:0.75rem;color:#94a3b8;">({ch2.get('sr_or_econ')})</span></span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                      <span style="color:#64748b;">Setting Target</span>
+                      <span style="width:35%;text-align:center;font-weight:600;color:var(--ink);">{se1.get('avg')} <span style="font-size:0.75rem;color:#94a3b8;">({se1.get('sr_or_econ')})</span></span>
+                      <span style="width:35%;text-align:center;font-weight:600;color:var(--ink);">{se2.get('avg')} <span style="font-size:0.75rem;color:#94a3b8;">({se2.get('sr_or_econ')})</span></span>
+                  </div>
+                  <div style="margin-top:12px;font-size:0.75rem;color:var(--muted);text-align:center;">Format: <b>{val1_label}</b> (<b>{val2_label}</b>)</div>
+              </div>
+              """,
+              unsafe_allow_html=True
+          )
+          
+      with col_p:
+          st.markdown("##### Delivery Type: vs Pace vs vs Spin")
+          pa1 = s1.get("vs_pace", {}); pa2 = s2.get("vs_pace", {})
+          sp1 = s1.get("vs_spin", {}); sp2 = s2.get("vs_spin", {})
+          st.markdown(
+              f"""
+              <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px;">
+                  <div style="display:flex;justify-content:space-between;border-bottom:1px solid #cbd5e1;padding-bottom:8px;margin-bottom:8px;">
+                      <span style="font-weight:bold;color:#475569;">Delivery Type</span>
+                      <span style="font-weight:bold;color:var(--brand);width:35%;text-align:center;">{html.escape(player1_resolved.title())}</span>
+                      <span style="font-weight:bold;color:#0284c7;width:35%;text-align:center;">{html.escape(player2_resolved.title())}</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #e2e8f0;">
+                      <span style="color:#64748b;">vs Pace Bowlers</span>
+                      <span style="width:35%;text-align:center;font-weight:600;color:var(--ink);">{pa1.get('avg')} <span style="font-size:0.75rem;color:#94a3b8;">({pa1.get('sr_or_econ')})</span></span>
+                      <span style="width:35%;text-align:center;font-weight:600;color:var(--ink);">{pa2.get('avg')} <span style="font-size:0.75rem;color:#94a3b8;">({pa2.get('sr_or_econ')})</span></span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;padding:6px 0;">
+                      <span style="color:#64748b;">vs Spin Bowlers</span>
+                      <span style="width:35%;text-align:center;font-weight:600;color:var(--ink);">{sp1.get('avg')} <span style="font-size:0.75rem;color:#94a3b8;">({sp1.get('sr_or_econ')})</span></span>
+                      <span style="width:35%;text-align:center;font-weight:600;color:var(--ink);">{sp2.get('avg')} <span style="font-size:0.75rem;color:#94a3b8;">({sp2.get('sr_or_econ')})</span></span>
+                  </div>
+                  <div style="margin-top:12px;font-size:0.75rem;color:var(--muted);text-align:center;">Format: <b>{val1_label}</b> (<b>{val2_label}</b>)</div>
+              </div>
+              """,
+              unsafe_allow_html=True
+          )
+
+  with tab_timeline:
+      t1 = p1_det.get("timeline", [])
+      t2 = p2_det.get("timeline", [])
+      if t1 and t2:
+          years = [item["year"] for item in t1]
+          v1 = [item["value"] for item in t1]
+          v2 = [item["value"] for item in t2]
+          
+          fig_timeline = go.Figure()
+          fig_timeline.add_trace(go.Scatter(
+              x=years, y=v1, name=player1_resolved.title(),
+              line=dict(color="#6b4f1d", width=3),
+              marker=dict(size=8, symbol="circle"),
+              mode="lines+markers"
+          ))
+          fig_timeline.add_trace(go.Scatter(
+              x=years, y=v2, name=player2_resolved.title(),
+              line=dict(color="#0284c7", width=3),
+              marker=dict(size=8, symbol="circle"),
+              mode="lines+markers"
+          ))
+          
+          chart_title = "Yearly Bowling Average (lower is better)" if active_mode == "bowling" else "Yearly Batting Average"
+          fig_timeline.update_layout(
+              font=dict(family="Inter, sans-serif", size=12, color="#0f172a"),
+              title=dict(text=chart_title, x=0.5, xanchor="center", font=dict(family="Rajdhani, sans-serif", size=16, color="#0f172a", weight="bold")),
+              xaxis=dict(tickmode="linear", tick0=2018, dtick=1, gridcolor="#e2e8f0"),
+              yaxis=dict(gridcolor="#e2e8f0", title="Average"),
+              hovermode="x unified",
+              paper_bgcolor="rgba(0,0,0,0)",
+              plot_bgcolor="rgba(0,0,0,0)",
+              margin=dict(t=50, b=30, l=40, r=40),
+              height=360
+          )
+          st.plotly_chart(fig_timeline, use_container_width=True, key="career_timeline_plotly")
+      else:
+          st.caption("Career timeline statistics not available.")
+
   insight_items = result.get("comparison", [])
   safe_insights = "".join(f"<li>{html.escape(str(item))}</li>" for item in insight_items)
   st.markdown(
