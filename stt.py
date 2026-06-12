@@ -6,16 +6,25 @@ from dotenv import load_dotenv
 from groq import Groq
 
 # F1: import everything from the single centralised registry
-from players import COMMON_PLAYER_ALIASES, _match_player_name, extract_players_from_transcript  # noqa: F401
+from players import ALL_PLAYER_ALIASES, _match_player_name, extract_players_from_transcript  # noqa: F401
+
+# Build a deduplicated, sorted list of all canonical player names for the Whisper prompt.
+_UNIQUE_PLAYERS = sorted(set(ALL_PLAYER_ALIASES.values()))
 
 load_dotenv()
 
 _CLIENT = None
+# Only use the turbo model — it's fastest and most than sufficient for short voice clips.
+# Falling back to larger models on timeout just compounds the delay.
 _TRANSCRIPTION_MODELS = [
     "whisper-large-v3-turbo",
-    "whisper-large-v3",
-    "distil-whisper-large-v3-en",
 ]
+
+# Whisper accepts 16-bit PCM WAV. For a voice clip saying two names,
+# 25 seconds is more than enough — trim to reduce payload & avoid timeouts.
+_MAX_AUDIO_SECONDS = 25
+_SAMPLE_RATE = 16000  # 16 kHz mono, 2 bytes per sample
+_MAX_AUDIO_BYTES = _MAX_AUDIO_SECONDS * _SAMPLE_RATE * 2  # 800 KB ceiling
 
 
 def _normalize(text):
@@ -32,7 +41,8 @@ def _get_client():
     if not api_key:
         return None
 
-    _CLIENT = Groq(api_key=api_key)
+    # 30-second timeout prevents the "Request timed out" error on slow networks.
+    _CLIENT = Groq(api_key=api_key, timeout=30.0)
     return _CLIENT
 
 
@@ -76,19 +86,38 @@ def transcribe_wav_bytes(audio_bytes, language="en", filename="", mime_type=""):
     ext = _guess_audio_extension(audio_bytes, filename=filename, mime_type=mime_type)
     lang = str(language or "").strip().lower()
 
+    # Trim oversized audio — for two player names, 25 s is more than enough.
+    # This shrinks the upload payload and prevents timeouts on slow connections.
+    if ext == "wav" and len(audio_bytes) > _MAX_AUDIO_BYTES:
+        # WAV header is 44 bytes; trim only the PCM body
+        wav_header = audio_bytes[:44]
+        pcm_body = audio_bytes[44: 44 + _MAX_AUDIO_BYTES]
+        audio_bytes = wav_header + pcm_body
+
     last_error = ""
     for model_name in _TRANSCRIPTION_MODELS:
         buffer = io.BytesIO(audio_bytes)
         buffer.name = f"speech.{ext}"
+        # Build Whisper prompt within the hard 896-character API limit.
+        _PROMPT_PREFIX = (
+            "Cricket commentary context. The user is asking to compare two players. "
+            "Known player names: "
+        )
+        _PROMPT_SUFFIX = ". Transcribe clearly."
+        _MAX_PROMPT_CHARS = 896
+        _available = _MAX_PROMPT_CHARS - len(_PROMPT_PREFIX) - len(_PROMPT_SUFFIX)
+        _names_str = ""
+        for _name in _UNIQUE_PLAYERS:
+            _candidate = (_names_str + ", " + _name) if _names_str else _name
+            if len(_candidate) > _available:
+                break
+            _names_str = _candidate
+        _whisper_prompt = _PROMPT_PREFIX + _names_str + _PROMPT_SUFFIX
         request_args = {
             "file": buffer,
             "model": model_name,
             "temperature": 0,
-            "prompt": (
-                "Cricket context. Player names can include Virat Kohli, Rohit Sharma, "
-                "MS Dhoni, KL Rahul, Hardik Pandya, Jasprit Bumrah, Mohammed Siraj, "
-                "Sachin Tendulkar, Babar Azam, Pat Cummins, Ben Stokes. Return clear text."
-            ),
+            "prompt": _whisper_prompt,
         }
         if lang:
             request_args["language"] = lang

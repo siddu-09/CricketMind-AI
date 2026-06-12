@@ -953,103 +953,175 @@ if st.session_state.last_result:
 
   with c_table:
     if active_mode == "bowling" and bowl_breakdown:
-      table_rows = ""
-      for fmt_name, fmt_lbl in [("test","TEST"),("odi","ODI"),("t20i","T20I"),("ipl","IPL")]:
+      def _bowl_fmt_table(fmt_name, fmt_lbl_display):
         p1f = p1_bowl_bd.get(fmt_name, {}); p2f = p2_bowl_bd.get(fmt_name, {})
-        if p1f or p2f:
-          table_rows += f"""
-          <tr style="background:#f0fdf4;font-weight:bold;border-top:2px solid var(--line);">
-            <td colspan="3" style="padding:10px;color:#15803d;text-transform:uppercase;font-family:'Rajdhani',sans-serif;font-size:1.1rem;">{fmt_lbl}</td>
-          </tr>
+        if not p1f and not p2f:
+          st.caption(f"No {fmt_lbl_display} bowling statistics available.")
+          return
+        def _row(label, key, bold=False):
+          w = "600" if bold else "400"
+          return f"""
           <tr style="border-bottom:1px solid #e2e8f0;">
-            <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Wickets</td>
-            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p1f.get('wickets','N/A')}</td>
-            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p2f.get('wickets','N/A')}</td>
-          </tr>
-          <tr style="border-bottom:1px solid #e2e8f0;">
-            <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Bowl Average</td>
-            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p1f.get('bowling_average','N/A')}</td>
-            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p2f.get('bowling_average','N/A')}</td>
-          </tr>
-          <tr style="border-bottom:1px solid #e2e8f0;">
-            <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Economy</td>
-            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p1f.get('economy','N/A')}</td>
-            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p2f.get('economy','N/A')}</td>
-          </tr>
-          <tr style="border-bottom:1px solid #cbd5e1;">
-            <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Bowl Strike Rate</td>
-            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p1f.get('bowling_sr','N/A')}</td>
-            <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{p2f.get('bowling_sr','N/A')}</td>
-          </tr>
-          """
+            <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">{label}</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:{w};color:var(--ink);">{p1f.get(key,'N/A')}</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:{w};color:var(--ink);">{p2f.get(key,'N/A')}</td>
+          </tr>"""
+        rows = (
+          _row("Wickets",         "wickets",         bold=True) +
+          _row("Bowl Average",    "bowling_average",  bold=True) +
+          _row("Economy",         "economy",          bold=True) +
+          _row("Bowl Strike Rate","bowling_sr",        bold=True)
+        )
+        st.markdown(
+          f"""
+          <div class="section-card" style="margin:0;padding:16px;">
+            <table style="width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
+              <thead>
+                <tr style="background:#f0fdf4;border-bottom:2px solid #86efac;">
+                  <th style="padding:10px;text-align:left;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;">Metric</th>
+                  <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player1_resolved.title())}</th>
+                  <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player2_resolved.title())}</th>
+                </tr>
+              </thead>
+              <tbody>{rows}</tbody>
+            </table>
+          </div>
+          """,
+          unsafe_allow_html=True,
+        )
+
       st.markdown(
-        f"""
-        <div class="section-card" style="margin:0;padding:16px;">
-          <div class="section-heading" style="margin-bottom:12px;">Bowling Format Breakdown</div>
-          <table style="width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
-            <thead>
-              <tr style="background:#f0fdf4;border-bottom:2px solid #86efac;">
-                <th style="padding:10px;text-align:left;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;">Metric</th>
-                <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player1_resolved.title())}</th>
-                <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player2_resolved.title())}</th>
-              </tr>
-            </thead>
-            <tbody>{table_rows}</tbody>
-          </table>
-        </div>
-        """,
+        "<div style='font-family:\"Rajdhani\",sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink);margin-bottom:6px;'>Bowling Format Breakdown</div>",
         unsafe_allow_html=True,
       )
+      bbd_overview, bbd_test, bbd_odi, bbd_t20i, bbd_ipl = st.tabs(["Overview", "Test", "ODI", "T20I", "IPL"])
+      with bbd_overview:
+        st.markdown(
+          f"""
+          <div class="section-card" style="margin:0;padding:16px;">
+            <table style="width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
+              <thead>
+                <tr style="background:#f0fdf4;border-bottom:2px solid #86efac;">
+                  <th style="padding:10px;text-align:left;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;">Metric</th>
+                  <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player1_resolved.title())}</th>
+                  <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player2_resolved.title())}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                  <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Wickets</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats1.get('wickets','N/A')}</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats2.get('wickets','N/A')}</td>
+                </tr>
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                  <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Bowl Average</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats1.get('bowling_average','N/A')}</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats2.get('bowling_average','N/A')}</td>
+                </tr>
+                <tr style="border-bottom:1px solid #cbd5e1;">
+                  <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Economy</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats1.get('economy','N/A')}</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats2.get('economy','N/A')}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          """,
+          unsafe_allow_html=True,
+        )
+      with bbd_test:
+        _bowl_fmt_table("test", "Test")
+      with bbd_odi:
+        _bowl_fmt_table("odi", "ODI")
+      with bbd_t20i:
+        _bowl_fmt_table("t20i", "T20I")
+      with bbd_ipl:
+        _bowl_fmt_table("ipl", "IPL")
     elif breakdown:
-      table_rows = ""
-      for fmt_name, fmt_label_t in [("test","TEST"),("odi","ODI"),("t20i","T20I"),("ipl","IPL")]:
+      def _bat_fmt_table(fmt_name, fmt_lbl_display):
         p1_fmt = p1_breakdown.get(fmt_name, {}); p2_fmt = p2_breakdown.get(fmt_name, {})
-        if p1_fmt or p2_fmt:
-          table_rows += f"""
-          <tr style="background-color: #f8fbff; font-weight: bold; border-top: 2px solid var(--line);">
-            <td colspan="3" style="padding: 10px; color: var(--brand); text-transform: uppercase; font-family: 'Rajdhani', sans-serif; font-size: 1.1rem;">{fmt_label_t}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Innings</td>
-            <td style="padding: 8px 12px; text-align: center; color: var(--ink);">{p1_fmt.get('innings', 'N/A')}</td>
-            <td style="padding: 8px 12px; text-align: center; color: var(--ink);">{p2_fmt.get('innings', 'N/A')}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Runs</td>
-            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('runs', 'N/A')}</td>
-            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('runs', 'N/A')}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Average</td>
-            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('average', 'N/A')}</td>
-            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('average', 'N/A')}</td>
-          </tr>
-          <tr style="border-bottom: 1px solid #cbd5e1;">
-            <td style="padding: 8px 12px; color: var(--muted); font-size: 0.9rem;">Strike Rate</td>
-            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p1_fmt.get('strike_rate', 'N/A')}</td>
-            <td style="padding: 8px 12px; text-align: center; font-weight: 600; color: var(--ink);">{p2_fmt.get('strike_rate', 'N/A')}</td>
-          </tr>
-          """
+        if not p1_fmt and not p2_fmt:
+          st.caption(f"No {fmt_lbl_display} statistics available.")
+          return
+        def _row(label, key, bold=False):
+          w = "600" if bold else "400"
+          return f"""
+          <tr style="border-bottom:1px solid #e2e8f0;">
+            <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">{label}</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:{w};color:var(--ink);">{p1_fmt.get(key,'N/A')}</td>
+            <td style="padding:8px 12px;text-align:center;font-weight:{w};color:var(--ink);">{p2_fmt.get(key,'N/A')}</td>
+          </tr>"""
+        rows = (
+          _row("Innings",     "innings") +
+          _row("Runs",        "runs",        bold=True) +
+          _row("Average",     "average",     bold=True) +
+          _row("Strike Rate", "strike_rate", bold=True)
+        )
+        st.markdown(
+          f"""
+          <div class="section-card" style="margin:0;padding:16px;">
+            <table style="width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
+              <thead>
+                <tr style="background-color:#f1f5f9;border-bottom:2px solid var(--line);">
+                  <th style="padding:10px;text-align:left;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;">Metric</th>
+                  <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player1_resolved.title())}</th>
+                  <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player2_resolved.title())}</th>
+                </tr>
+              </thead>
+              <tbody>{rows}</tbody>
+            </table>
+          </div>
+          """,
+          unsafe_allow_html=True,
+        )
+
       st.markdown(
-        f"""
-        <div class="section-card" style="margin: 0; padding: 16px;">
-          <div class="section-heading" style="margin-bottom: 12px;">Format Stats Breakdown</div>
-          <table style="width: 100%; border-collapse: collapse; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;">
-            <thead>
-              <tr style="background-color: #f1f5f9; border-bottom: 2px solid var(--line);">
-                <th style="padding: 10px; text-align: left; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700;">Metric</th>
-                <th style="padding: 10px; text-align: center; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700; width: 35%;">{html.escape(player1_resolved.title())}</th>
-                <th style="padding: 10px; text-align: center; color: var(--ink); font-family: 'Rajdhani', sans-serif; font-weight: 700; width: 35%;">{html.escape(player2_resolved.title())}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {table_rows}
-            </tbody>
-          </table>
-        </div>
-        """,
+        "<div style='font-family:\"Rajdhani\",sans-serif;font-size:1.1rem;font-weight:700;color:var(--ink);margin-bottom:6px;'>Format Stats Breakdown</div>",
         unsafe_allow_html=True,
       )
+      bd_overview, bd_test, bd_odi, bd_t20i, bd_ipl = st.tabs(["Overview", "Test", "ODI", "T20I", "IPL"])
+      with bd_overview:
+        st.markdown(
+          f"""
+          <div class="section-card" style="margin:0;padding:16px;">
+            <table style="width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:8px;overflow:hidden;">
+              <thead>
+                <tr style="background-color:#f1f5f9;border-bottom:2px solid var(--line);">
+                  <th style="padding:10px;text-align:left;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;">Metric</th>
+                  <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player1_resolved.title())}</th>
+                  <th style="padding:10px;text-align:center;color:var(--ink);font-family:'Rajdhani',sans-serif;font-weight:700;width:35%;">{html.escape(player2_resolved.title())}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                  <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Runs</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats1.get('runs','N/A')}</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats2.get('runs','N/A')}</td>
+                </tr>
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                  <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Average</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats1.get('average','N/A')}</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats2.get('average','N/A')}</td>
+                </tr>
+                <tr style="border-bottom:1px solid #cbd5e1;">
+                  <td style="padding:8px 12px;color:var(--muted);font-size:0.9rem;">Strike Rate</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats1.get('strike_rate','N/A')}</td>
+                  <td style="padding:8px 12px;text-align:center;font-weight:600;color:var(--ink);">{stats2.get('strike_rate','N/A')}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          """,
+          unsafe_allow_html=True,
+        )
+      with bd_test:
+        _bat_fmt_table("test", "Test")
+      with bd_odi:
+        _bat_fmt_table("odi", "ODI")
+      with bd_t20i:
+        _bat_fmt_table("t20i", "T20I")
+      with bd_ipl:
+        _bat_fmt_table("ipl", "IPL")
     else:
       st.caption("Detailed format breakdown not available.")
 
@@ -1306,7 +1378,9 @@ if st.session_state.last_result:
       col_c, col_p = st.columns(2)
       val1_label = "Avg" if active_mode == "batting" else "Bowl Avg"
       val2_label = "SR" if active_mode == "batting" else "Econ"
-      
+      s1 = p1_det.get("situational", {})
+      s2 = p2_det.get("situational", {})
+
       with col_c:
           st.markdown("##### Innings Situation: Chasing vs Setting Target")
           ch1 = s1.get("chasing", {}); ch2 = s2.get("chasing", {})

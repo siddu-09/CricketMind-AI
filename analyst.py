@@ -4,6 +4,7 @@ import re
 import time
 import requests
 import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 from groq import Groq
 
@@ -664,8 +665,12 @@ def cricket_analyst(player1, player2, language="en", match_format="combined", st
     player1 = resolve_player_alias(player1)
     player2 = resolve_player_alias(player2)
 
-    p1_stats, p1_error = get_player_stats(player1)
-    p2_stats, p2_error = get_player_stats(player2)
+    # Fetch both players' stats in PARALLEL — halves the CricAPI wait time
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        fut1 = executor.submit(get_player_stats, player1)
+        fut2 = executor.submit(get_player_stats, player2)
+        p1_stats, p1_error = fut1.result()
+        p2_stats, p2_error = fut2.result()
     if not p1_stats or not p2_stats:
         error_parts = []
         if not p1_stats:
