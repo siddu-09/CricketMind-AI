@@ -96,6 +96,71 @@ Host   : Groq (LPU inference engine)
 
 5. **90% of GPT-4o quality at 0% cost** — The 70B size gives strong reasoning and language quality that matches or exceeds GPT-3.5, and approaches GPT-4o for tasks like sports analysis and commentary generation.
 
+---
+
+## Speech-to-Text (STT)
+
+### Model Used: OpenAI Whisper Large v3 Turbo (via Groq)
+
+Voice input is transcribed using **Whisper Large v3 Turbo**, an open-source speech recognition model created by **OpenAI**, served through the **Groq API**.
+
+```
+Model  : whisper-large-v3-turbo
+Creator: OpenAI (open-sourced)
+Host   : Groq API
+```
+
+### Why Whisper Large v3 Turbo?
+
+| Model | Speed | Accuracy | Timeout Risk | Best For |
+|---|---|---|---|---|
+| **Whisper Large v3 Turbo** ✅ | ⚡ Very fast | ★★★★☆ | Very low | Short voice clips |
+| Whisper Large v3 | 🐢 Slow | ★★★★★ | High | Long audio files |
+| Whisper Small / Base | ⚡⚡ Fastest | ★★☆☆☆ | Very low | Simple commands only |
+
+**Key reasons Whisper Large v3 Turbo was chosen:**
+
+1. **Perfect for short voice input** — Users speak just two player names (2–5 seconds). The turbo variant is optimally sized for this — full `large-v3` is overkill and risks timeouts on slow networks.
+
+2. **Cricket name accuracy** — At the large-v3 quality level, it correctly recognises difficult cricket player names (e.g., Jasprit Bumrah, Yuzvendra Chahal, Kagiso Rabada) that smaller models misfire on.
+
+3. **Fastest inference via Groq** — Groq's LPU hardware runs Whisper turbo extremely fast, so voice-to-text feels near-instant even for users on slower connections.
+
+4. **Same API key, zero extra cost** — Groq's Whisper endpoint uses the same `GROQ_API_KEY` as the LLM, meaning no additional setup or billing account is needed.
+
+---
+
+## Text-to-Speech (TTS)
+
+### Model Used: Google gTTS (Google Text-to-Speech)
+
+Audio commentary playback uses **gTTS**, a Python wrapper around Google's Text-to-Speech API.
+
+```
+Library : gTTS (pip install gtts)
+Provider: Google Translate TTS (no API key required)
+```
+
+### Why Google gTTS?
+
+| Provider | Hindi | Kannada | Cost | Setup | Voice Quality |
+|---|---|---|---|---|---|
+| **Google gTTS** ✅ | ✅ Native | ✅ Native | 🆓 Free | Zero config | Natural |
+| ElevenLabs | ✅ | ❌ | 💰 Paid | API key | Best |
+| AWS Polly | ✅ | ⚠️ Limited | 💰 Paid | AWS account | Very good |
+| Coqui TTS | ⚠️ | ❌ | 🆓 Free | Model download | Robotic |
+| pyttsx3 | ⚠️ | ❌ | 🆓 Free | Zero config | Robotic |
+
+**Key reasons gTTS was chosen:**
+
+1. **Only free TTS with full Hindi + Kannada support** — This project generates commentary in English, Hindi, and Kannada. gTTS is the only free option that natively supports all three with natural pronunciation.
+
+2. **Zero configuration** — No API key, no cloud account, no model download. Just `pip install gtts` and it works out of the box.
+
+3. **Natural voice quality** — Google's TTS engine produces human-sounding speech, unlike offline engines (pyttsx3, Coqui) which sound robotic.
+
+4. **Lightweight** — gTTS is a tiny library with no heavy dependencies, keeping the Docker image and startup time small.
+
 ## Project Structure
 
 - app.py: FastAPI app and analyze endpoint
