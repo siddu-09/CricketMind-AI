@@ -57,6 +57,45 @@ Live demo: https://huggingface.co/spaces/siddu9/cricketmind-ai
 - requests
 - python-dotenv
 
+## AI Model
+
+### Model Used: Meta LLaMA 3.3 70B Versatile (via Groq)
+
+This project uses **LLaMA 3.3 70B Versatile**, an open-source large language model created by **Meta AI**, accessed through the **Groq API** for ultra-fast inference.
+
+```
+Model  : llama-3.3-70b-versatile
+Creator: Meta AI
+Host   : Groq (LPU inference engine)
+```
+
+**Meta** built and trained the model. **Groq** runs it on custom LPU (Language Processing Unit) hardware, delivering speeds of ~300 tokens/second — roughly 10x faster than GPT-4o.
+
+---
+
+### Why LLaMA 3.3 70B Versatile?
+
+| Model | Speed on Groq | Quality | Cost | Multilingual | Open Source |
+|---|---|---|---|---|---|
+| **LLaMA 3.3 70B Versatile** ✅ | ⚡ ~300 tok/s | ★★★★★ | Free tier | ✅ Strong | ✅ |
+| LLaMA 3.1 8B | ⚡⚡ Very fast | ★★★☆☆ | Free | ⚠️ Weak | ✅ |
+| GPT-4o (OpenAI) | 🐢 Moderate | ★★★★★ | 💰 Paid | ✅ | ❌ |
+| Claude 3.5 Sonnet | 🐢 Moderate | ★★★★★ | 💰 Paid | ✅ | ❌ |
+| Gemini 1.5 Pro | 🐢 Moderate | ★★★★☆ | 💰 Paid | ✅ | ❌ |
+| Mixtral 8x7B | ⚡ Fast | ★★★☆☆ | Free | ⚠️ Weak | ✅ |
+
+**Key reasons this model was chosen for CricketMind AI:**
+
+1. **Multilingual output** — Reliably writes native Hindi (Devanagari) and Kannada script for commentary. Smaller 8B models often romanize non-English languages incorrectly.
+
+2. **Speed via Groq** — Real-time sports commentary needs fast responses. Groq's LPU delivers ~300 tokens/second on this model, making commentary feel instant.
+
+3. **Free / low cost** — Groq offers a generous free tier. Paid alternatives like GPT-4o or Claude cost significantly more per token, making them impractical for hobby/student projects.
+
+4. **Reliable structured JSON output** — The app relies on the LLM returning strict JSON (analysis, comparison, verdict, commentary). At 70B parameters, this model handles it consistently without breaking format.
+
+5. **90% of GPT-4o quality at 0% cost** — The 70B size gives strong reasoning and language quality that matches or exceeds GPT-3.5, and approaches GPT-4o for tasks like sports analysis and commentary generation.
+
 ## Project Structure
 
 - app.py: FastAPI app and analyze endpoint
